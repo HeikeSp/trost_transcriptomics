@@ -1,0 +1,1175 @@
+Sequencing Data
+========================================================
+
+## Input: FPKM_genes table from rsem
+
+### Set working directory
+```{r Set working directory}
+getwd()
+#setwd("/mnt/winhome/TROST/Sequencing/data")
+setwd("TROST/Sequencing/Publication/scripts/")
+```
+
+
+### load workspace
+```{r load workspace}
+load("fpkm.RData")
+
+library(pcaMethods)
+library(knitr)
+library(gplots)
+library(psych)
+library(corrplot)
+library(corrgram)
+library(VennDiagram)
+
+source("../functions/colors.R")
+
+assoc_pgsc <- read.table("../../data/pgsc_data/PGSC_DM_v3.4_g2t2c2p2func_edit.txt")
+head(assoc_pgsc)
+colnames(assoc_pgsc) <- c("pgsc_dmg", "pgsc_dmt", "pgsc_dmc", "pgsc_dmp", "func")
+```
+
+
+### load samplelist
+```{r load samplelist}
+samplelist <- read.table("../data/samplelist.txt", header=TRUE, sep = "\t")
+
+# new ordering!
+samplelist_ordered <- samplelist[with(samplelist, order(trial_number, condition, cultivar)),]
+head(samplelist_ordered)
+
+# rename and reorder cultivars
+levels(samplelist_ordered$cultivar) <- c("Alegria", "Desiree", "Milva", "Saturna")
+samplelist_ordered$cultivar <- factor(samplelist_ordered$cultivar, levels=c("Alegria", "Milva", "Desiree", "Saturna"))
+
+# rename conditions
+levels(samplelist_ordered$condition) <- c("control", "drought stress")
+
+# samplelist subset for greenhouse/field
+samplelist_greenhouse <- subset(samplelist_ordered, samplelist_ordered$cultivation == "greenhouse")
+samplelist_field <- subset(samplelist_ordered, samplelist_ordered$cultivation == "field")
+
+# droplevels is used to drop unused levels from a factor or, more commonly, from factors in a data frame.
+samplelist_greenhouse <- droplevels(samplelist_greenhouse) 
+samplelist_field <- droplevels(samplelist_field)
+
+head(samplelist)
+```
+
+
+### modify sample list
+```{r modify sample list}
+interaction(samplelist_ordered$cultivar, samplelist_ordered$condition)
+interaction(samplelist_ordered$cultivation, samplelist_ordered$condition)
+
+trial <- c(rep("field_1",8), rep("greenhouse_1",8), rep("greenhouse_2",8), rep("greenhouse_3",8), rep("field_2",8), rep("field_3",8))  
+
+samplelist_ordered <- cbind(samplelist_ordered, trial, interaction(samplelist_ordered$cultivar, samplelist_ordered$condition), interaction(samplelist_ordered$cultivation, samplelist_ordered$condition))
+
+colnames(samplelist_ordered) <- c("sample_number", "sample_name", "trial_number", "trial_name", "cultivation", "cultivar", "condition", "tolerance","libsize_raw", "libsize_mapped", "trial", "cultivar_condition","cultivation_condition")
+
+head(samplelist_ordered)
+
+samplelist_ordered$trial <- as.factor(samplelist_ordered$trial)
+class(samplelist_ordered$trial)
+levels(samplelist_ordered$trial)
+
+# relevel trial_name
+levels(samplelist_ordered$trial_name)
+samplelist_ordered$trial_name <- factor(samplelist_ordered$trial_name, 
+                                        levels=c("JKI-GWH1", "MPITest1.2", "MPITest2", 
+                                                 "JKIFeld2012", "MPIFeld2011", "MPIFeld2012") )
+
+levels(samplelist_ordered$cultivar_condition)
+levels(samplelist_ordered$cultivation_condition)
+
+write.table(samplelist_ordered, "../output/samplelist_ordered2.txt", sep="\t")
+```
+
+
+### load expected counts data (per gene)
+```{r load expected counts data}
+exp_counts_genes <- read.table("../data/genes_expCounts.tsv", header = TRUE, sep = "\t", row.names = 1)
+```
+
+
+### load FPKM data (per gene)
+```{r load FPKM data}
+  
+#fpkm <- read.table("FPKM_table_edit.txt", header = TRUE, sep = "\t", row.names = 1)
+
+fpkm_genes <- read.table("../data/genes_FPKMs.txt", header = TRUE, sep = "\t", row.names = 1)
+
+dim(fpkm_genes)
+class(fpkm_genes)
+colnames(fpkm_genes)
+head(rownames(fpkm_genes))
+hist(log(fpkm_genes[,1]), breaks=100)
+```
+
+
+### Remove genes with zero counts over all samples
+```{r remove genes with no counts}
+fpkm_row_mean <- apply(fpkm_genes, 1, mean) # calculate row mean
+fpkm_row_max <- apply(fpkm_genes, 1, max) # calculate row max
+fpkm_row_sums <- apply(fpkm_genes, 1, sum) # calculate row sums
+fpkm_row_var <- apply(fpkm_genes, 1, var) # calculate row sums
+
+length(which(fpkm_row_sums==0)) # rows with sum = 0
+# 5334
+
+length(which(fpkm_row_max < 1))
+# 16757
+
+length(which(fpkm_row_sums < 5))
+# 15183
+
+fpkm_genes_filtered <- fpkm_genes[-which(fpkm_row_max < 1),] # remove rows where maximal value < 1
+# save this table
+
+dim(fpkm_genes_filtered)
+# 26277 48
+
+write.table(fpkm_genes_filtered, "../output/fpkm_genes_filtered.txt", sep="\t")
+```
+
+**There are 5334 genes that show 0 as FPKM value for all samples.**
+
+
+### transpose for PCA
+```{r transpose data for PCA}
+fpkm_genes_pca <- t(fpkm_genes_filtered[,1:48])
+dim(fpkm_genes_pca)
+# Zeilen: samples (48), Spalten: Transkripte (26277)
+```
+
+
+### PCA
+```{r PCA}
+genes_ppca_res <- pca(fpkm_genes_pca, nPcs = 5, method = "ppca")
+genes_ppca_res@R2
+# 0.67165222 0.10356602 0.04502103 0.03483613 0.03277887
+
+genes_rnipals_res <- pca(fpkm_genes_pca, nPcs = 5, method = "rnipals")
+genes_rnipals_res@R2
+```
+
+
+### PCA plots
+```{r PCA plots}
+source("../functions/func_pca_plots.R")
+
+pdf("../figures/pca_plot_all_samples.pdf")
+par(mar=c(4.5, 4.5, 1.5, 0.5))
+
+palette(cols_sample_time2)
+func_5pairs_plot(genes_ppca_res, factors = samplelist_ordered, color_factor = "cultivation")
+
+palette(cols_trial)
+func_5pairs_plot(genes_ppca_res, factors = samplelist_ordered, color_factor = "trial_name")
+#func_5pairs_plot(genes_rnipals_res, factors = samplelist_ordered, color_factor = "trial_name")
+
+func_pca_plot(genes_ppca_res, 1, 2, factors = samplelist_ordered, color_factor = "trial_name", 
+              pos1="bottomleft", leg1=1.2, symbol_size=2,
+              legend.text=c("JKI GH1", "MPI-MP GH1", "MPI-MP GH2", 
+                            "JKI field 2012", "MPI-MP field 2011", "MPI-MP field 2012"))
+
+func_pca_plot_sym(genes_ppca_res, 1, 2, factors=samplelist_ordered, color_factor = "trial_name", symbols = c(19,17), 
+                  symbol_factor = "condition", symbol_size=2, "bottomleft", 1.2, "topleft", 1.2,
+                  legend.text=c("JKI GH1", "MPI-MP GH1", "MPI-MP GH2", 
+                            "JKI field 2012", "MPI-MP field 2011", "MPI-MP field 2012"))
+
+plot(genes_ppca_res@scores[,1], genes_ppca_res@scores[,2], bg=samplelist_ordered$trial_name, 
+     cex=2, pch=21, xlab="PC1 (67.2%)", ylab="PC2 (10.4%)", cex.lab=1.5, cex.axis=1.2, col="black")
+
+dev.off()
+
+# for phd-thesis
+pdf("../../../../Doktorarbeit/figures/rna_pca_all.pdf", width=6, height=6)
+par(mar=c(4.5, 4.5, 1.5, 0.5))
+func_pca_plot(genes_ppca_res, 1, 2, factors = samplelist_ordered, color_factor = "trial_name", 
+              pos1="bottomleft", leg1=1.2, symbol_size=2,
+              legend.text=c("JKI GH1", "MPI-MP GH1", "MPI-MP GH2", 
+                            "JKI field 2012", "MPI-MP field 2011", "MPI-MP field 2012"))
+dev.off()
+```
+
+
+### replace zero or low values by NA
+```{r replace zero by NA}
+dim(fpkm_genes_filtered)
+fpkm_genes_filtered_mod1 <- fpkm_genes_filtered
+fpkm_genes_filtered_mod2 <- fpkm_genes_filtered
+fpkm_genes_filtered_mod3 <- fpkm_genes_filtered
+
+fpkm_genes_filtered_mod1[fpkm_genes_filtered_mod1 == 0] <- NA 
+fpkm_genes_filtered_mod2[fpkm_genes_filtered_mod2 < 0.1] <- NA  
+fpkm_genes_filtered_mod3[fpkm_genes_filtered_mod3 < 1] <- NA
+
+sum(is.na(fpkm_genes_filtered_mod1)) / (ncol(fpkm_genes_filtered_mod1)*nrow(fpkm_genes_filtered_mod1)) * 100
+sum(is.na(fpkm_genes_filtered_mod2)) / (ncol(fpkm_genes_filtered_mod2)*nrow(fpkm_genes_filtered_mod2)) * 100
+sum(is.na(fpkm_genes_filtered_mod3)) / (ncol(fpkm_genes_filtered_mod3)*nrow(fpkm_genes_filtered_mod3)) * 100
+
+# hist(log2(fpkm_genes_filtered[,1]))
+# hist(log2(fpkm_genes_filtered_mod1[,1]))
+# hist(log2(fpkm_genes_filtered_mod2[,1]))
+# hist(log2(fpkm_genes_filtered_mod3[,1]))
+
+# summary(log2(fpkm_genes_filtered[,1]))
+# summary(log2(fpkm_genes_filtered_mod1[,1]))
+# summary(log2(fpkm_genes_filtered_mod2[,1]))
+# summary(log2(fpkm_genes_filtered_mod3[,1]))
+
+fpkm_genes_filtered_mod3_var <- apply(log2(fpkm_genes_filtered_mod3), 1, var) # calculate row var
+hist(fpkm_genes_filtered_mod3_var, breaks=150, col="gray")
+abline(v=0.5, col="red")
+
+dim(fpkm_genes_filtered_mod3)
+length(which(fpkm_genes_filtered_mod3_var<0.5))
+```
+
+
+### PCA of log2 values
+```{r PCA of log2 values}
+# use table where all values below 1 are replaced by NA
+fpkm_genes_log2 <- t (log2 (fpkm_genes_filtered_mod3))
+
+genes_log2_ppca_res <- pca(fpkm_genes_log2, nPcs = 5, method = "ppca")
+genes_log2_ppca_res@R2
+# 0.26242978 0.14852288 0.11035545 0.08575872 0.07905126
+
+palette(cols_trial)
+func_5pairs_plot(genes_log2_ppca_res, factors = samplelist_ordered, color_factor = "trial_name")
+palette(cols_treatment)
+func_5pairs_plot(genes_log2_ppca_res, factors = samplelist_ordered, color_factor = "condition")
+palette(cols_cultivar)
+func_5pairs_plot(genes_log2_ppca_res, factors = samplelist_ordered, color_factor = "cultivar")
+```
+
+
+### PCA plots of log2 values
+```{r PCA plots of log2 values}
+pdf("../figures/pca_plot_all_samples_log2.pdf")
+par(mar=c(4.5, 4.5, 1.5, 0.5))
+
+palette(cols_sample_time2)
+func_5pairs_plot(genes_log2_ppca_res, factors = samplelist_ordered, color_factor = "cultivation")
+
+palette(cols_trial)
+func_5pairs_plot(genes_log2_ppca_res, factors = samplelist_ordered, color_factor = "trial_name")
+
+func_pca_plot(genes_log2_ppca_res, 1, 2, factors = samplelist_ordered, color_factor = "trial_name", 
+              pos1="bottomleft", leg1=1, symbol_size=2,
+              legend.text=c("JKI GH1", "MPI-MP GH1", "MPI-MP GH2", 
+                            "JKI field 2012", "MPI-MP field 2011", "MPI-MP field 2012"))
+
+func_pca_plot_sym(genes_log2_ppca_res, 1, 2, factors=samplelist_ordered, color_factor = "trial_name", symbols = c(19,17), 
+                  symbol_factor = "condition", symbol_size=2, "bottomleft", 1, "bottomright", 1.2,
+                  legend.text=c("JKI GH1", "MPI-MP GH1", "MPI-MP GH2", 
+                            "JKI field 2012", "MPI-MP field 2011", "MPI-MP field 2012"))
+dev.off()
+```
+
+
+### PCA separately for both cultivations: field and greenhouse
+```{r only greenhouse/field filtering}
+fpkm_genes_field <- fpkm_genes_filtered[,c(1:8, 33:48)]
+fpkm_genes_greenhouse <- fpkm_genes_filtered[,c(9:32)]
+
+# mean
+fpkm_field_row_max <- apply(fpkm_genes_field, 1, max)
+fpkm_greenhouse_row_max <- apply(fpkm_genes_greenhouse, 1, max)
+
+length(which(fpkm_field_row_max < 1))
+length(which(fpkm_greenhouse_row_max < 1))
+
+
+fpkm_genes_field_filtered <- fpkm_genes_field[-which(fpkm_field_row_max < 1),] # remove rows where sum equals zero
+dim(fpkm_genes_field_filtered)
+fpkm_genes_greenhouse_filtered <- fpkm_genes_greenhouse[-which(fpkm_greenhouse_row_max < 1),] # remove rows where sum equals zero
+dim(fpkm_genes_greenhouse_filtered)
+```
+
+
+### replace zero or low values by NA
+```{r replace zero by NA greenhouse/field}
+dim(fpkm_genes_filtered)
+
+fpkm_genes_field_filtered_mod3 <- fpkm_genes_field_filtered
+fpkm_genes_greenhouse_filtered_mod3 <- fpkm_genes_greenhouse_filtered
+
+fpkm_genes_field_filtered_mod3[fpkm_genes_field_filtered_mod3 < 1] <- NA
+fpkm_genes_greenhouse_filtered_mod3[fpkm_genes_greenhouse_filtered_mod3 < 1] <- NA
+
+sum(is.na(fpkm_genes_field_filtered_mod3)) / 
+  (ncol(fpkm_genes_field_filtered_mod3)*nrow(fpkm_genes_field_filtered_mod3)) * 100
+
+sum(is.na(fpkm_genes_greenhouse_filtered_mod3)) / 
+  (ncol(fpkm_genes_greenhouse_filtered_mod3)*nrow(fpkm_genes_greenhouse_filtered_mod3)) * 100
+```
+
+
+```{r PCA field}
+fpkm_genes_field_pca <- t(fpkm_genes_filtered[,c(1:8, 33:48)])
+
+genes_ppca_field_res <- pca(fpkm_genes_field_pca, nPcs = 5, method = "ppca")
+genes_ppca_field_res@R2
+# 0.57590978 0.15184096 0.08578538 0.05441616 0.03896677
+
+###############################################################################
+
+# data with NAs
+
+fpkm_genes_field_log2 <- t ( log2 (fpkm_genes_field_filtered_mod3) )
+
+genes_ppca_field_log2_res <- pca(fpkm_genes_field_log2, nPcs = 5, method = "ppca")
+genes_ppca_field_log2_res@R2
+# 0.2704921 0.1737968 0.1295270 0.1130497 0.1057927
+```
+
+
+```{r PCA greenhouse}
+fpkm_genes_greenhouse_pca <- t(fpkm_genes_filtered[,9:32])
+
+genes_ppca_greenhouse_res <- pca(fpkm_genes_greenhouse_pca, nPcs = 5, method = "ppca")
+genes_ppca_greenhouse_res@R2
+# 0.39614732 0.16837439 0.12981461 0.08674703 0.05990647
+
+###############################################################################
+
+# data with NAs
+
+fpkm_genes_greenhouse_log2 <- t ( log2 (fpkm_genes_greenhouse_filtered_mod3) )
+
+genes_ppca_greenhouse_log2_res <- pca(fpkm_genes_greenhouse_log2, nPcs = 5, method = "ppca")
+genes_ppca_greenhouse_log2_res@R2
+# 0.2070570 0.1698139 0.1624407 0.1391474 0.1235172
+```
+
+
+
+### PCA plots greenhouse
+```{r PCA plots greenhouse}
+source("../functions/func_pca_plots.R")
+
+pdf("../figures/pca_plot_greenhouse.pdf")
+par(mar=c(4.5, 4.5, 1.5, 0.5))
+
+palette(cols_treatment)
+func_5pairs_plot(genes_ppca_greenhouse_res, factors = samplelist_greenhouse, color_factor = "condition")
+
+# PC1 vs. PC4
+func_pca_plot(genes_ppca_greenhouse_res, 1, 4, factors = samplelist_greenhouse, color_factor = "condition", 
+              pos1="bottomleft", leg1=1.2, symbol_size=2)
+
+# cultivar + condition
+palette(cols_cultivar)
+func_5pairs_plot(genes_ppca_greenhouse_res, factors = samplelist_greenhouse, color_factor = "cultivar")
+
+func_pca_plot(genes_ppca_greenhouse_res, 1, 4, factors=samplelist_greenhouse, 
+                  color_factor = "cultivar", symbol_size=2, 19, "topright", 1.2)
+
+func_pca_plot_sym(genes_ppca_greenhouse_res, 1, 4, factors=samplelist_greenhouse, 
+                  color_factor = "cultivar", symbols = c(19,17), 
+                  symbol_factor = "condition", symbol_size=2, "topright", 1.2, "topleft", 1.2)
+
+# trial + condition
+palette("default")
+func_pca_plot_sym(genes_ppca_greenhouse_res, 1, 2, factors=samplelist_greenhouse, 
+                  color_factor = "trial_name", symbols = c(19,17), 
+                  symbol_factor = "condition", symbol_size=2, "bottomright", 1.2, "topright", 1.2)
+
+func_5pairs_plot_sym(genes_ppca_greenhouse_res, factors = samplelist_greenhouse, color_factor = "trial_name", c(19,17), "condition")
+
+dev.off()
+```
+
+
+
+```{r PCA plots greenhouse thesis}
+# for phd-thesis
+pdf("../../../../Doktorarbeit/figures/rna_pca_greenhouse.pdf", width=6, height=6)
+par(mar=c(4.5, 4.5, 1.5, 0.5))
+func_pca_plot(genes_ppca_greenhouse_res, 1, 4, factors=samplelist_greenhouse, 
+                  color_factor = "condition", symbol_size=2, 19, "bottomright", 1.2)
+dev.off()
+
+pdf("../../../../Doktorarbeit/figures/rna_pca_greenhouse_cul.pdf", width=6, height=6)
+par(mar=c(4.5, 4.5, 1.5, 0.5))
+func_pca_plot_sym(genes_ppca_greenhouse_res, 1, 4, factors=samplelist_greenhouse, 
+                  color_factor = "cultivar", symbols = c(19,17), 
+                  symbol_factor = "condition", symbol_size=2, "topright", 1.2, "topleft", 1.2)
+dev.off()
+```
+
+
+
+### PCA plots greenhouse log2 values
+```{r PCA plots greenhouse log2 values}
+source("../functions/func_pca_plots.R")
+
+pdf("../figures/pca_plot_greenhouse_log2.pdf")
+par(mar=c(4.5, 4.5, 1.5, 0.5))
+
+palette(cols_treatment)
+func_5pairs_plot(genes_ppca_greenhouse_log2_res, factors = samplelist_greenhouse, color_factor = "condition")
+
+# PC1 vs. PC4
+func_pca_plot(genes_ppca_greenhouse_log2_res, 1, 4, factors = samplelist_greenhouse, color_factor = "condition", 
+              pos1="bottomleft", leg1=1.2, symbol_size=2)
+
+# cultivar
+palette(cols_cultivar)
+func_5pairs_plot(genes_ppca_greenhouse_log2_res, factors = samplelist_greenhouse, color_factor = "cultivar")
+
+func_pca_plot(genes_ppca_greenhouse_log2_res, 1, 4, factors=samplelist_greenhouse, 
+                  color_factor = "cultivar", symbol_size=2, 19, "topright", 1.2)
+
+# cultivar + condition
+func_5pairs_plot_sym(genes_ppca_greenhouse_log2_res, factors = samplelist_greenhouse, 
+                     color_factor = "cultivar", c(19,17), "condition", symbol_size=2)
+
+func_pca_plot_sym(genes_ppca_greenhouse_log2_res, 2, 3, factors=samplelist_greenhouse, 
+                  color_factor = "cultivar", symbols = c(19,17), 
+                  symbol_factor = "condition", symbol_size=2, "topright", 1.2, "topleft", 1.2)
+
+# trial + condition
+#palette("default")
+func_pca_plot_sym(genes_ppca_greenhouse_log2_res, 1, 2, factors=samplelist_greenhouse, 
+                  color_factor = "trial_name", symbols = c(19,17), 
+                  symbol_factor = "condition", symbol_size=2, "bottomright", 1.2, "topright", 1.2)
+
+text(genes_ppca_greenhouse_log2_res@scores[,1], genes_ppca_greenhouse_log2_res@scores[,2], labels=samplelist_greenhouse$cultivar)
+
+func_5pairs_plot_sym(genes_ppca_greenhouse_log2_res, factors = samplelist_greenhouse, color_factor = "trial_name", c(19,17), "condition")
+
+dev.off()
+```
+
+
+
+### PCA plots field
+```{r PCA plots field}
+source("../functions/func_pca_plots.R")
+
+pdf("../figures/pca_plot_field.pdf")
+par(mar=c(4.5, 4.5, 1.5, 0.5))
+
+palette(cols_treatment)
+func_5pairs_plot(genes_ppca_field_res, factors = samplelist_field, color_factor = "condition")
+
+# PC1 vs. PC5
+func_pca_plot(genes_ppca_field_res, 1, 5, factors = samplelist_field, color_factor = "condition", 
+              pos1="bottomright", leg1=1.2, symbol_size=2)
+
+# cultivar + condition
+palette(cols_cultivar)
+func_5pairs_plot(genes_ppca_field_res, factors = samplelist_field, color_factor = "cultivar")
+func_5pairs_plot_sym(genes_ppca_field_res, factors = samplelist_field, color_factor = "cultivar", c(19,17), "condition")
+
+func_pca_plot(genes_ppca_field_res, 1, 5, factors=samplelist_field, 
+                  color_factor = "cultivar", symbol_size=2, 19, "topright", 1.2)
+
+func_pca_plot_sym(genes_ppca_field_res, 1, 5, factors=samplelist_field, 
+                  color_factor = "cultivar", symbols = c(19,17), 
+                  symbol_factor = "condition", symbol_size=2, "bottomright", 1.2, "bottomleft", 1.2)
+
+text(genes_ppca_field_res@scores[,1], genes_ppca_field_res@scores[,5], labels=samplelist_field$trial_number, pos = 1)
+
+# PC1 vs. PC3
+func_pca_plot(genes_ppca_field_res, 1, 3, factors=samplelist_field, 
+                  color_factor = "cultivar", symbol_size=2, 19, "topright", 1.2)
+
+func_pca_plot_sym(genes_ppca_field_res, 1, 3, factors=samplelist_field, 
+                  color_factor = "cultivar", symbols = c(19,17), 
+                  symbol_factor = "condition", symbol_size=2, "bottomright", 1.2, "bottomleft", 1.2)
+
+text(genes_ppca_field_res@scores[,1], genes_ppca_field_res@scores[,3], labels=samplelist_field$trial_number, pos = 1)
+
+# trial + condition
+palette("default")
+func_pca_plot_sym(genes_ppca_field_res, 1, 3, factors=samplelist_field, 
+                  color_factor = "trial_name", symbols = c(19,17), 
+                  symbol_factor = "condition", symbol_size=2, "bottomright", 1.2, "bottomleft", 1.2)
+func_5pairs_plot_sym(genes_ppca_field_res, factors = samplelist_field, color_factor = "trial_name", c(19,17), "condition")
+
+dev.off()
+```
+
+
+#### for phd-thesis
+```{r PCA plots field thesis}
+palette(cols_treatment)
+pdf("../../../../Doktorarbeit/figures/rna_pca_field.pdf", width=6, height=6)
+par(mar=c(4.5, 4.5, 1.5, 0.5))
+func_pca_plot(genes_ppca_field_res, 1, 3, factors=samplelist_field, 
+                  color_factor = "condition", symbol_size=2, 19, "bottomright", 1.2)
+dev.off()
+
+palette(cols_cultivar)
+pdf("../../../../Doktorarbeit/figures/rna_pca_field_cul.pdf", width=6, height=6)
+par(mar=c(4.5, 4.5, 1.5, 0.5))
+func_pca_plot_sym(genes_ppca_field_res, 1, 3, factors=samplelist_field, 
+                  color_factor = "cultivar", symbols = c(19,17), 
+                  symbol_factor = "condition", symbol_size=2, "bottomright", 1.2, "bottomleft", 1.2)
+dev.off()
+```
+
+
+### PCA plots field log2 values
+```{r PCA plots field log2 values}
+source("../functions/func_pca_plots.R")
+
+pdf("../figures/pca_plot_field_log2.pdf")
+par(mar=c(4.5, 4.5, 1.5, 0.5))
+
+palette(cols_treatment)
+func_5pairs_plot(genes_ppca_field_log2_res, factors = samplelist_field, color_factor = "condition")
+
+# PC1 vs. PC4
+func_pca_plot(genes_ppca_field_log2_res, 1, 4, factors = samplelist_field, color_factor = "condition", 
+              pos1="bottomleft", leg1=1.2, symbol_size=2)
+
+# cultivar
+palette(cols_cultivar)
+func_5pairs_plot(genes_ppca_field_log2_res, factors = samplelist_field, color_factor = "cultivar")
+
+func_pca_plot(genes_ppca_field_log2_res, 1, 4, factors=samplelist_field, 
+                  color_factor = "cultivar", symbol_size=2, 19, "topright", 1.2)
+
+# cultivar + condition
+func_5pairs_plot_sym(genes_ppca_field_log2_res, factors = samplelist_field, 
+                     color_factor = "cultivar", c(19,17), "condition", symbol_size=2)
+
+func_pca_plot_sym(genes_ppca_field_log2_res, 2, 3, factors=samplelist_field, 
+                  color_factor = "cultivar", symbols = c(19,17), 
+                  symbol_factor = "condition", symbol_size=2, "topright", 1.2, "topleft", 1.2)
+
+# trial + condition
+#palette("default")
+func_pca_plot_sym(genes_ppca_field_log2_res, 1, 2, factors=samplelist_field, 
+                  color_factor = "trial_name", symbols = c(19,17), 
+                  symbol_factor = "condition", symbol_size=2, "topleft", 1.2, "topright", 1.2)
+
+text(genes_ppca_field_log2_res@scores[,1], genes_ppca_field_log2_res@scores[,2], labels=samplelist_field$cultivar)
+
+func_5pairs_plot_sym(genes_ppca_field_log2_res, factors = samplelist_field, color_factor = "trial_name", c(19,17), "condition")
+
+dev.off()
+```
+
+### sample correlation analysis
+```{r sample correlation analysis}
+fpkm_genes_log2_t <- t(fpkm_genes_log2)
+dim(fpkm_genes_log2_t)
+colnames(fpkm_genes_log2_t)
+res_corr <- corr.test(fpkm_genes_log2_t, adjust="BH")
+dim(res_corr$r)
+range(res_corr$r)
+```
+
+### heatmap
+```{r heatmap}
+mat_data <- as.matrix(res_corr$r)
+
+distance = dist(mat_data, method = "euclidian")
+cluster = hclust(distance, method = "average")
+
+#mycluster <- cutree(cluster, h=max(cluster$height)/1.5)
+mycluster <- cutree(cluster, k=4)
+mycluster[cluster$order]
+
+mycolor <- brewer.pal(8, "Set2")
+mycolor <- mycolor[as.vector(mycluster)]
+
+my_palette <- colorRampPalette(c("blue", "white", "red"))(n = 299)
+
+col_breaks = c(seq(-1,-0.3,length=100), # for blue
+               seq(-0.3,0.3,length=100), # for white
+               seq(0.3,1,length=100)) # for red
+
+# for Phd-thesis: cultivar effect, with treatment as symbol
+#pdf("../../../../Doktorarbeit/figures/heatmap_log2FC_signif_cultivars_pot.pdf", width=6, height=10)
+pdf("../figures/heatmap_corr.pdf", width=8, height=8)
+
+lmat=rbind(4:3, 2:1)
+lhei=c(0.8, 4)
+lwid=c(1, 4)
+
+layout(mat = lmat, widths = lwid, heights = lhei)
+
+heatmap.2(mat_data,
+  #cellnote = signif2,  # same data set for cell labels
+  #notecex=1.5, # numeric scaling factor for cellnote items
+  colsep=1:ncol(mat_data), 
+  rowsep=1:nrow(mat_data),
+  sepwidth=c(0.01,0.05),
+  sepcolor="black",
+  main = "", # heat map title
+  notecol="black",      # change font color of cell labels to black
+  density.info="none",  # turns off density plot inside color legend
+  trace="none",         # turns off trace lines inside the heat map
+  margins =c(6,20),     # widens margins around plot
+  keysize=1.5,
+  cexRow=1.5,
+  cexCol=1.5,
+  lhei=c(0.6, 4),
+  col=my_palette,       # use on color palette defined earlier 
+  breaks=col_breaks,    # enable color transition at specified limits
+  RowSideColors=mycolor,
+  Rowv=as.dendrogram(cluster),
+  dendrogram="row",     # only draw a row dendrogram
+  Colv="NA")            # turn off column clustering```
+
+dev.off()
+
+```
+
+
+```{r corrplot}
+
+corrgram(res_corr$r, order=TRUE, lower.panel=panel.shade, upper.panel=NULL, text.panel=panel.txt)
+
+
+source("../functions/func_cor_mtest.R")
+
+dim(fpkm_genes_log2_t)
+res_corr_mtest <- func_cor_mtest(fpkm_genes_log2_t, 0.95)
+class(res_corr_mtest)
+dim(res_corr_mtest[[2]])
+
+pdf("../figures/corrplot.pdf",10,10)
+corrplot(res_corr$r, method="color", order="hclust", hclust.method="average", tl.col="black", tl.cex=0.5)
+
+# insignificant pairs are crossed out
+corrplot(res_corr$r, p.mat = res_corr_mtest[[1]], sig.level = 0.05, order="hclust", tl.col="black", tl.cex=0.5, pch = 4, pch.col = "black", pch.cex = 0.5, hclust.method="average")
+
+# insignificant pairs are wiped away
+corrplot(res_corr$r, p.mat = res_corr_mtest[[1]], sig.level = 0.05, order="hclust", tl.col="black", tl.cex=0.5, hclust.method="average", insig="blank", method="color")
+dev.off()
+```
+
+### number of expressed genes
+```{r number of expressed genes}
+identified_transcripts_per_sample <- apply(fpkm_all, 2, function(x) length(which(x>0)))
+summary(identified_transcripts_per_sample)
+
+high_conf_transcripts_per_sample <- apply(fpkm_all, 2, function(x) length(which(x>1)))
+summary(high_conf_transcripts_per_sample)
+high_conf_transcripts_per_sample[1]
+
+write.table(cbind(identified_transcripts_per_sample, high_conf_transcripts_per_sample), "../output/number_of_transcripts.txt", sep="\t")
+
+identified_transcripts_per_sample_idx <- apply(fpkm_all, 2, function(x) which(x>0))
+high_conf_transcripts_per_sample_idx <- apply(fpkm_all, 2, function(x) which(x>1))
+length(high_conf_transcripts_per_sample_idx$t01_A_c)
+length(high_conf_transcripts_per_sample_idx$t05_A_c)
+
+# intersect
+length(Reduce(intersect, identified_transcripts_per_sample_idx))
+# 19703 --> number of commonly identified genes among all samples
+length(Reduce(intersect, high_conf_transcripts_per_sample_idx))
+# 14211 --> number of commonly expressed genes among all samples
+
+# union
+length(Reduce(union, identified_transcripts_per_sample_idx))
+length(Reduce(union, high_conf_transcripts_per_sample_idx))
+
+field_a_c <- Reduce(intersect, high_conf_transcripts_per_sample_idx[c(1,33,41)])
+field_d_c <- Reduce(intersect, high_conf_transcripts_per_sample_idx[c(2,34,42)])
+field_m_c <- Reduce(intersect, high_conf_transcripts_per_sample_idx[c(3,35,43)])
+field_s_c <- Reduce(intersect, high_conf_transcripts_per_sample_idx[c(4,36,44)])
+field_a_d <- Reduce(intersect, high_conf_transcripts_per_sample_idx[c(5,37,45)])
+field_d_d <- Reduce(intersect, high_conf_transcripts_per_sample_idx[c(6,38,46)])
+field_m_d <- Reduce(intersect, high_conf_transcripts_per_sample_idx[c(7,39,47)])
+field_s_d <- Reduce(intersect, high_conf_transcripts_per_sample_idx[c(8,40,48)])
+
+field_a <- intersect(field_a_c, field_a_d)
+field_d <- intersect(field_d_c, field_d_d)
+field_m <- intersect(field_m_c, field_m_d)
+field_s <- intersect(field_s_c, field_s_d)
+
+greenhouse_a_c <- Reduce(intersect, high_conf_transcripts_per_sample_idx[c(9,17,25)])
+greenhouse_d_c <- Reduce(intersect, high_conf_transcripts_per_sample_idx[c(10,18,26)])
+greenhouse_m_c <- Reduce(intersect, high_conf_transcripts_per_sample_idx[c(11,19,27)])
+greenhouse_s_c <- Reduce(intersect, high_conf_transcripts_per_sample_idx[c(12,20,28)])
+greenhouse_a_d <- Reduce(intersect, high_conf_transcripts_per_sample_idx[c(13,21,29)])
+greenhouse_d_d <- Reduce(intersect, high_conf_transcripts_per_sample_idx[c(14,22,30)])
+greenhouse_m_d <- Reduce(intersect, high_conf_transcripts_per_sample_idx[c(15,23,31)])
+greenhouse_s_d <- Reduce(intersect, high_conf_transcripts_per_sample_idx[c(16,24,32)])
+
+greenhouse_a <- intersect(greenhouse_a_c, greenhouse_a_d)
+greenhouse_d <- intersect(greenhouse_d_c, greenhouse_d_d)
+greenhouse_m <- intersect(greenhouse_m_c, greenhouse_m_d)
+greenhouse_s <- intersect(greenhouse_s_c, greenhouse_s_d)
+
+alegria <- intersect(greenhouse_a, field_a)
+desiree <- intersect(greenhouse_d, field_d)
+milva <- intersect(greenhouse_m, field_m)
+saturna <- intersect(greenhouse_s, field_s)
+
+
+high_conf_transcripts_per_sample_intersect <- list(field_a_c, field_a_d, field_d_c, field_d_d, field_m_c, field_m_d, field_s_c, field_s_d, greenhouse_a_c, greenhouse_a_d, greenhouse_d_c, greenhouse_d_d, greenhouse_m_c, greenhouse_m_d, greenhouse_s_c, greenhouse_s_d)
+
+
+
+barplot(as.numeric(lapply(high_conf_transcripts_per_sample_intersect, length)), col=cols_cultivar_treatment)
+
+field_all <- Reduce(intersect, high_conf_transcripts_per_sample_idx[c(1:8,33:48)])
+greenhouse_all <- Reduce(intersect, high_conf_transcripts_per_sample_idx[c(9:32)])
+length(intersect(greenhouse_all, field_all))
+# 14211
+
+venn.plot <- venn.diagram(x = list(Field=field_all, Greenhouse=greenhouse_all), 
+            filename=NULL, col = "transparent", fill = c("yellow","green"), 
+            alpha = 0.50, label.col = "black", 
+            cex = 1.5, fontfamily = "sans", fontface = "bold", 
+            cat.col = "black" , cat.cex = 1.5, cat.dist = 0.07, cat.fontfamily = "sans", 
+            rotation.degree = 0, margin = 0.2, scaled=FALSE
+                          )
+dev.off()
+grid.draw(venn.plot)
+```
+
+
+```{r venn diagram of specific genes}
+w=list(
+  "Alegria" = field_a,
+  "Desiree" = field_d,
+  "Milva" = field_m,
+  "Saturna" = field_s)
+
+venn.plot <- venn.diagram(
+  x = w,  
+  #filename = "../figures/all_field_venn_all_cultivars.png",
+  filename=NULL,
+  col = "black",
+  fill = c("goldenrod1", "dodgerblue2", "darkorange2", "cyan3"), #category colors  
+  alpha = 0.5,
+  cat.cex = 1.5, #cat font size
+  cat.fontface = "bold",
+  margin = 0.1, # Bildbegrenzung,
+  cex=1.5, 
+  #cat.dist=0.25, 
+  scaled=FALSE)
+dev.off()
+grid.draw(venn.plot)
+
+w=list(
+  "Alegria" = greenhouse_a,
+  "Desiree" = greenhouse_d,
+  "Milva" = greenhouse_m,
+  "Saturna" = greenhouse_s)
+
+
+venn.plot <- venn.diagram(
+  x = w,  
+  #filename = "../figures/all_field_venn_all_cultivars.png",
+  filename=NULL,
+  col = "black",
+  fill = c("goldenrod1", "dodgerblue2", "darkorange2", "cyan3"), #category colors  
+  alpha = 0.5,
+  cat.cex = 1.5, #cat font size
+  cat.fontface = "bold",
+  margin = 0.1, # Bildbegrenzung,
+  cex=1.5, 
+  #cat.dist=0.25, 
+  scaled=FALSE)
+dev.off()
+grid.draw(venn.plot)
+
+
+w=list(
+  "Alegria" = alegria,
+  "Desiree" = desiree,
+  "Milva" = milva,
+  "Saturna" = saturna)
+venn.plot <- venn.diagram(
+  x = w,  
+  #filename = "../figures/all_field_venn_all_cultivars.png",
+  filename=NULL,
+  col = "black",
+  fill = c("goldenrod1", "dodgerblue2", "darkorange2", "cyan3"), #category colors  
+  alpha = 0.5,
+  cat.cex = 1.5, #cat font size
+  cat.fontface = "bold",
+  margin = 0.1, # Bildbegrenzung ,
+  cex=1.5, 
+  #cat.dist=0.25, 
+  scaled=FALSE)
+dev.off()
+grid.draw(venn.plot)
+```
+
+
+### specifically expressed genes (field)
+```{r specifically expressed genes (field)}
+dim(fpkm_genes)
+length(which(fpkm_row_sums==0)) # rows with sum = 0
+# 5334
+idx_not_expressed <- which(fpkm_row_sums==0)
+
+# only genes with sum > 0
+fpkm_all <- fpkm_genes[-idx_not_expressed, ]
+fpkm_all_field <- fpkm_genes[-idx_not_expressed , c(1:8, 33:48)]
+fpkm_all_greenhouse <- fpkm_genes[-idx_not_expressed , c(9:32)]
+dim(fpkm_all)
+
+# at least FPKM > 1 in ALL samples
+fpkm_all_min <- apply(fpkm_all, 1, min) 
+length(which(fpkm_all_min>1))
+# 14211
+head(which(fpkm_all_min>1))
+fpkm_all[115,]
+
+fpkm_field_median <- apply(fpkm_all_field, 1, median) 
+fpkm_greenhouse_median <- apply(fpkm_all_greenhouse, 1, median)
+
+fpkm_all_max <- apply(fpkm_all, 1, max) 
+fpkm_field_max <- apply(fpkm_all_field, 1, max) 
+fpkm_greenhouse_max <- apply(fpkm_all_greenhouse, 1, max)
+
+length(which(fpkm_all_max<1))
+# 11423
+length(which(fpkm_field_max<1))
+# 13100
+length(which(fpkm_greenhouse_max<1))
+# 12293
+
+fpkm_field_part_sum <- apply(fpkm_all_field[which(fpkm_greenhouse_max<1),], 1, sum)
+fpkm_field_part_mean <- apply(fpkm_all_field[which(fpkm_greenhouse_max<1),], 1, mean)
+fpkm_field_part_median <- apply(fpkm_all_field[which(fpkm_greenhouse_max<1),], 1, median)
+fpkm_field_part_min <- apply(fpkm_all_field[which(fpkm_greenhouse_max<1),], 1, min)
+fpkm_field_part_max <- apply(fpkm_all_field[which(fpkm_greenhouse_max<1),], 1, max)
+length(which(fpkm_field_part_mean>1))
+length(which(fpkm_field_part_sum>20))
+
+fpkm_greenhouse_part_sum <- apply(fpkm_all_greenhouse[which(fpkm_field_max<1),], 1, sum)
+fpkm_greenhouse_part_mean <- apply(fpkm_all_greenhouse[which(fpkm_field_max<1),], 1, mean)
+fpkm_greenhouse_part_median <- apply(fpkm_all_greenhouse[which(fpkm_field_max<1),], 1, median)
+fpkm_greenhouse_part_min <- apply(fpkm_all_greenhouse[which(fpkm_field_max<1),], 1, min)
+fpkm_greenhouse_part_max <- apply(fpkm_all_greenhouse[which(fpkm_field_max<1),], 1, max)
+length(which(fpkm_greenhouse_part_mean>1))
+length(which(fpkm_greenhouse_part_sum>20))
+
+
+fpkm_fc_field <- (fpkm_field_median + 1)/ (fpkm_greenhouse_median + 1)
+length(which(fpkm_fc_field>5))
+# 95
+names(which(fpkm_fc_field>5))
+
+fpkm_fc_field_sig <- fpkm_fc_field [which(fpkm_fc_field > 5)]
+fpkm_fc_field_sig <- cbind(names=names(fpkm_fc_field_sig), fc=as.numeric(fpkm_fc_field_sig))
+head(fpkm_fc_field_sig)
+
+fpkm_fc_field_sig_dmp <- merge(fpkm_fc_field_sig, assoc_pgsc, by.x="names", by.y="pgsc_dmg")
+head(fpkm_fc_field_sig_dmp)
+write.table(fpkm_fc_field_sig_dmp, "../output/fpkm_fc_field_sig_dmp.txt", row.names=F, quote=F, sep="\t")
+
+hist(as.numeric(fpkm_fc_field_sig), breaks=20, col="grey")
+sort(as.numeric(fpkm_fc_field_sig[,2]))
+fpkm_fc_field["PGSC0003DMG400023193"]
+boxplot(as.numeric(fpkm_all_greenhouse["PGSC0003DMG400023193",]), as.numeric(fpkm_all_field["PGSC0003DMG400023193",]))
+```
+
+
+### specifically expressed genes (greenhouse)
+```{r specifically expressed genes (greenhouse)}
+fpkm_fc_greenhouse <- fpkm_greenhouse_median/ (fpkm_field_median + 1)
+length(which(fpkm_fc_greenhouse>5))
+# 130
+
+fpkm_fc_greenhouse_sig <- fpkm_fc_greenhouse [which(fpkm_fc_greenhouse > 5)]
+fpkm_fc_greenhouse_sig <- cbind(names=names(fpkm_fc_greenhouse_sig), fc=as.numeric(fpkm_fc_greenhouse_sig))
+class(fpkm_fc_greenhouse_sig[,2])
+#fpkm_fc_greenhouse_sig[,2] <- as.numeric(fpkm_fc_greenhouse_sig[,2])
+
+fpkm_fc_greenhouse_sig_dmp <- merge(fpkm_fc_greenhouse_sig, assoc_pgsc, by.x="names", by.y="pgsc_dmg")
+head(fpkm_fc_greenhouse_sig_dmp)
+write.table(fpkm_fc_greenhouse_sig_dmp, "../output/fpkm_fc_greenhouse_sig_dmp.txt", row.names=F, quote=F, sep="\t")
+
+hist(as.numeric(fpkm_fc_greenhouse_sig[,2]), breaks=20, col="grey")
+sort(as.numeric(fpkm_fc_greenhouse_sig[,2]))
+fpkm_fc_greenhouse["PGSC0003DMG400003530"]
+boxplot(as.numeric(fpkm_all_greenhouse["PGSC0003DMG400003530",]), as.numeric(fpkm_all_field["PGSC0003DMG400003530",]))
+
+
+
+
+source("../functions/func_specific_genes.R")
+fpkm_fc_greenhouse <- func_specific_genes_cultivation(fpkm_data = fpkm_all,
+                                                      samplelist_name = samplelist_ordered,
+                                                      cultivation_name = "greenhouse", threshold = 2)
+# 765
+# 19
+
+fpkm_fc_field <- func_specific_genes_cultivation(fpkm_data = fpkm_all,
+                                                      samplelist_name = samplelist_ordered,
+                                                      cultivation_name = "field", threshold = 1.5)
+# 2231
+# 22
+```
+
+
+```{r specifically expressed genes Alegria}
+source("../functions/func_specific_genes.R")
+fpkm_fc_greenhouse_alegria <- func_specific_genes_cultivar(fpkm_data = fpkm_all_greenhouse,
+                             samplelist_name = samplelist_greenhouse,
+                             cultivar_name = "Alegria", threshold = 2)
+# 568
+# 54
+
+fpkm_fc_field_alegria <- func_specific_genes_cultivar(fpkm_data = fpkm_all_field,
+                             samplelist_name = samplelist_field,
+                             cultivar_name = "Alegria")
+# 390
+# 44
+
+length(intersect(fpkm_fc_greenhouse_alegria$specific, fpkm_fc_field_alegria$specific))
+# 25
+fpkm_all[intersect(fpkm_fc_greenhouse_alegria$specific, fpkm_fc_field_alegria$specific),]
+
+# boxplots
+func_specific_genes_cultivar_boxplot(fpkm_data = fpkm_all_greenhouse,
+                             samplelist_name = samplelist_greenhouse,
+                             cultivar_name = "Alegria",
+                             gene_name = "PGSC0003DMG400001845")
+
+func_specific_genes_cultivar_boxplot(fpkm_data = fpkm_all_field,
+                             samplelist_name = samplelist_field,
+                             cultivar_name = "Alegria",
+                             gene_name = "PGSC0003DMG400001845")
+
+# across all 48 samples
+fpkm_fc_alegria_all <- func_specific_genes_cultivar(fpkm_data = fpkm_all,
+                             samplelist_name = samplelist_ordered,
+                             cultivar_name = "Alegria")
+# 442
+# 31
+
+func_specific_genes_cultivar_boxplot(fpkm_data = fpkm_all,
+                             samplelist_name = samplelist_ordered,
+                             cultivar_name = "Alegria",
+                             gene_name = "PGSC0003DMG400001845")
+```
+
+
+```{r specifically expressed genes Milva}
+source("../functions/func_specific_genes.R")
+fpkm_fc_greenhouse_milva <- func_specific_genes_cultivar(fpkm_data = fpkm_all_greenhouse,
+                             samplelist_name = samplelist_greenhouse,
+                             cultivar_name = "Milva")
+# 728
+# 56
+
+fpkm_fc_field_milva <- func_specific_genes_cultivar(fpkm_data = fpkm_all_field,
+                             samplelist_name = samplelist_field,
+                             cultivar_name = "Milva")
+# 515
+# 45
+
+# across all 48 samples
+fpkm_fc_milva_all <- func_specific_genes_cultivar(fpkm_data = fpkm_all,
+                             samplelist_name = samplelist_ordered,
+                             cultivar_name = "Milva")
+# 519
+# 33
+fpkm_fc_milva_all$specific
+fpkm_all[fpkm_fc_milva_all$specific,]
+
+func_specific_genes_cultivar_boxplot(fpkm_data = fpkm_all,
+                             samplelist_name = samplelist_ordered,
+                             cultivar_name = "Milva",
+                             gene_name = "PGSC0003DMG400019330")
+```
+
+```{r specifically expressed genes Desiree}
+source("../functions/func_specific_genes.R")
+fpkm_fc_greenhouse_desiree <- func_specific_genes_cultivar(fpkm_data = fpkm_all_greenhouse,
+                             samplelist_name = samplelist_greenhouse,
+                             cultivar_name = "Desiree")
+# 469
+# 36
+
+fpkm_fc_field_desiree <- func_specific_genes_cultivar(fpkm_data = fpkm_all_field,
+                             samplelist_name = samplelist_field,
+                             cultivar_name = "Desiree")
+# 374
+# 19
+
+# across all 48 samples
+fpkm_fc_desiree_all <- func_specific_genes_cultivar(fpkm_data = fpkm_all,
+                             samplelist_name = samplelist_ordered,
+                             cultivar_name = "Desiree")
+# 313
+# 11
+fpkm_fc_desiree_all$specific
+fpkm_all[fpkm_fc_desiree_all$specific,]
+
+func_specific_genes_cultivar_boxplot(fpkm_data = fpkm_all,
+                             samplelist_name = samplelist_ordered,
+                             cultivar_name = "Desiree",
+                             gene_name = "PGSC0003DMG400027022")
+```
+
+```{r specifically expressed genes Saturna}
+source("../functions/func_specific_genes.R")
+fpkm_fc_greenhouse_saturna <- func_specific_genes_cultivar(fpkm_data = fpkm_all_greenhouse,
+                             samplelist_name = samplelist_greenhouse,
+                             cultivar_name = "Saturna")
+# 919
+# 55
+
+fpkm_fc_field_saturna <- func_specific_genes_cultivar(fpkm_data = fpkm_all_field,
+                             samplelist_name = samplelist_field,
+                             cultivar_name = "Saturna")
+# 549
+# 63
+
+# across all 48 samples
+fpkm_fc_saturna_all <- func_specific_genes_cultivar(fpkm_data = fpkm_all,
+                             samplelist_name = samplelist_ordered,
+                             cultivar_name = "Saturna")
+# 642
+# 31
+fpkm_fc_saturna_all$specific
+fpkm_all[fpkm_fc_saturna_all$specific,]
+
+func_specific_genes_cultivar_boxplot(fpkm_data = fpkm_all,
+                             samplelist_name = samplelist_ordered,
+                             cultivar_name = "Saturna",
+                             gene_name = "PGSC0003DMG400031547")
+```
+
+
+```{r specifically expressed genes tolerant cultivars}
+source("../functions/func_specific_genes.R")
+fpkm_fc_greenhouse_tolerant <- func_specific_genes_tolerance(fpkm_data = fpkm_all_greenhouse,
+                                                             samplelist_name = samplelist_greenhouse,
+                                                             tolerance_group = "tolerant")
+# 366
+# 55
+
+fpkm_fc_field_tolerant <- func_specific_genes_tolerance(fpkm_data = fpkm_all_field,
+                                                             samplelist_name = samplelist_field,
+                                                             tolerance_group = "tolerant")
+# 370
+# 42
+
+fpkm_fc_all_tolerant <- func_specific_genes_tolerance(fpkm_data = fpkm_all,
+                                                      samplelist_name = samplelist_ordered,
+                                                      tolerance_group = "tolerant")
+# 362
+# 33
+
+func_specific_genes_tolerance_boxplot(fpkm_data = fpkm_all,
+                             samplelist_name = samplelist_ordered,
+                             tolerance_group = "tolerant",
+                             gene_name = "PGSC0003DMG400008138",
+                             others = "sensitive")
+
+func_specific_genes_tolerance_boxplot(fpkm_data = fpkm_all,
+                             samplelist_name = samplelist_ordered,
+                             tolerance_group = "tolerant",
+                             gene_name = "PGSC0003DMG400002941",
+                             others = "sensitive")
+```
+
+```{r specifically expressed genes sensitive cultivars}
+source("../functions/func_specific_genes.R")
+fpkm_fc_greenhouse_sensitive <- func_specific_genes_tolerance(fpkm_data = fpkm_all_greenhouse,
+                                                             samplelist_name = samplelist_greenhouse,
+                                                             tolerance_group = "sensitive")
+# 400
+# 57
+
+fpkm_fc_field_sensitive <- func_specific_genes_tolerance(fpkm_data = fpkm_all_field,
+                                                             samplelist_name = samplelist_field,
+                                                             tolerance_group = "sensitive")
+# 303
+# 45
+
+fpkm_fc_all_sensitive <- func_specific_genes_tolerance(fpkm_data = fpkm_all,
+                                                      samplelist_name = samplelist_ordered,
+                                                      tolerance_group = "sensitive")
+# 327
+# 43
+```
+
+
+```{r specifically expressed genes control samples}
+source("../functions/func_specific_genes.R")
+fpkm_fc_greenhouse_control <- func_specific_genes_condition(fpkm_data = fpkm_all_greenhouse,
+                                                             samplelist_name = samplelist_greenhouse,
+                                                             condition_name = "control")
+# 166
+# 1
+
+fpkm_fc_field_control <- func_specific_genes_condition(fpkm_data = fpkm_all_field,
+                                                             samplelist_name = samplelist_field,
+                                                             condition_name = "control")
+# 181
+# 0
+
+fpkm_fc_all_control <- func_specific_genes_condition(fpkm_data = fpkm_all,
+                                                      samplelist_name = samplelist_ordered,
+                                                      condition_name = "control")
+# 208
+# 0
+```
+
+```{r specifically expressed genes drought samples}
+source("../functions/func_specific_genes.R")
+fpkm_fc_greenhouse_drought <- func_specific_genes_condition(fpkm_data = fpkm_all_greenhouse,
+                                                             samplelist_name = samplelist_greenhouse,
+                                                             condition_name = "drought stress")
+# 186
+# 0
+
+fpkm_fc_field_drought <- func_specific_genes_condition(fpkm_data = fpkm_all_field,
+                                                             samplelist_name = samplelist_field,
+                                                             condition_name = "drought stress")
+# 145
+# 2
+
+fpkm_fc_all_drought <- func_specific_genes_condition(fpkm_data = fpkm_all,
+                                                      samplelist_name = samplelist_ordered,
+                                                      condition_name = "drought stress")
+# 197
+# 0
+```
+
+
+```{r barplot of specific genes}
+#pdf("../figures/barplot_specific_genes.pdf", width=6, height=6)
+pdf("../../../../Doktorarbeit/figures/barplot_specific_genes.pdf", width=6, height=6)
+par(mar=c(9, 4.5, 1, 0.5))
+labs = c("greenhouse", "field", 
+         "Alegria greenhouse", "Alegria field", 
+         "Milva greenhouse", "Milva field", 
+         "Desiree greenhouse", "Desiree field", 
+         "Saturna greenhouse", "Saturna field")
+
+end_point = 1 + length(labs) + length(labs) - 1
+
+barplot(c(fpkm_fc_greenhouse$specific_number, fpkm_fc_field$specific_number,
+        fpkm_fc_greenhouse_alegria$specific_number, fpkm_fc_field_alegria$specific_number,
+        fpkm_fc_greenhouse_milva$specific_number, fpkm_fc_field_milva$specific_number,
+        fpkm_fc_greenhouse_desiree$specific_number, fpkm_fc_field_desiree$specific_number,
+        fpkm_fc_greenhouse_saturna$specific_number, fpkm_fc_field_saturna$specific_number), xaxt="n", space=1,
+        col=c("white", "grey"),
+        ylab="number of specifically expressed genes", cex.lab=1.5, cex.axis=1.2)
+
+text(cex=1.5, x=seq(2,end_point,by=2),  y=-1, labs, xpd=TRUE, srt=45, pos=2)
+
+dev.off()
+```
+
+
+
+```{r}
+save.image("fpkm.RData")
+```
+
+
