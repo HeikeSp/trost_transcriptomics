@@ -6,14 +6,13 @@ Sequencing Data
 ### Set working directory
 ```{r Set working directory}
 getwd()
-#setwd("/mnt/winhome/TROST/Sequencing/data")
-setwd("TROST/Sequencing/Publication/scripts/")
+setwd("repos/trost_transcriptomics")
 ```
 
 
 ### load workspace
 ```{r load workspace}
-load("fpkm.RData")
+# load("fpkm.RData")
 
 library(pcaMethods)
 library(knitr)
@@ -23,9 +22,13 @@ library(corrplot)
 library(corrgram)
 library(VennDiagram)
 
-source("../functions/colors.R")
+source("../libpurzel/colors.R")
+```
 
-assoc_pgsc <- read.table("../../data/pgsc_data/PGSC_DM_v3.4_g2t2c2p2func_edit.txt")
+
+### load PGSC annotation file
+```{r load PGSC annotation}
+assoc_pgsc <- read.table("data/PGSC_DM_v3.4_g2t2c2p2func_edit.txt")
 head(assoc_pgsc)
 colnames(assoc_pgsc) <- c("pgsc_dmg", "pgsc_dmt", "pgsc_dmc", "pgsc_dmp", "func")
 ```
@@ -33,7 +36,7 @@ colnames(assoc_pgsc) <- c("pgsc_dmg", "pgsc_dmt", "pgsc_dmc", "pgsc_dmp", "func"
 
 ### load samplelist
 ```{r load samplelist}
-samplelist <- read.table("../data/samplelist.txt", header=TRUE, sep = "\t")
+samplelist <- read.table("data/samplelist.txt", header=TRUE, sep = "\t")
 
 # new ordering!
 samplelist_ordered <- samplelist[with(samplelist, order(trial_number, condition, cultivar)),]
@@ -53,19 +56,21 @@ samplelist_field <- subset(samplelist_ordered, samplelist_ordered$cultivation ==
 # droplevels is used to drop unused levels from a factor or, more commonly, from factors in a data frame.
 samplelist_greenhouse <- droplevels(samplelist_greenhouse) 
 samplelist_field <- droplevels(samplelist_field)
-
-head(samplelist)
 ```
 
 
-### modify sample list
-```{r modify sample list}
+### modify samplelist
+```{r modify samplelist}
 interaction(samplelist_ordered$cultivar, samplelist_ordered$condition)
 interaction(samplelist_ordered$cultivation, samplelist_ordered$condition)
 
+# define vector for trial information (cultivation type)
 trial <- c(rep("field_1",8), rep("greenhouse_1",8), rep("greenhouse_2",8), rep("greenhouse_3",8), rep("field_2",8), rep("field_3",8))  
 
-samplelist_ordered <- cbind(samplelist_ordered, trial, interaction(samplelist_ordered$cultivar, samplelist_ordered$condition), interaction(samplelist_ordered$cultivation, samplelist_ordered$condition))
+samplelist_ordered <- cbind(samplelist_ordered, 
+                            trial, 
+                            interaction(samplelist_ordered$cultivar, samplelist_ordered$condition), 
+                            interaction(samplelist_ordered$cultivation, samplelist_ordered$condition))
 
 colnames(samplelist_ordered) <- c("sample_number", "sample_name", "trial_number", "trial_name", "cultivation", "cultivar", "condition", "tolerance","libsize_raw", "libsize_mapped", "trial", "cultivar_condition","cultivation_condition")
 
