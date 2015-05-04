@@ -2,10 +2,10 @@
 title: "Expected Count Data Analysis"
 author: "Heike Sprenger"
 date: "Monday, May 04, 2015"
-output: pdf_document
+output: html_document
 ---
 
-## Input: Expected counts table from rsem per gene
+## Input: Expected counts per gene (from RSEM)
 
 ### Set working directory  
 ```{r set working directory}
@@ -31,17 +31,135 @@ opts_knit$set(root.dir = 'D:/work/repos/trost_transcriptomics/')
 ### Load PGSC annotation file
 ```{r load PGSC annotation file}
 assoc_pgsc <- read.table("data/PGSC_DM_v3.4_g2t2c2p2func_edit.txt")
-head(assoc_pgsc)
 colnames(assoc_pgsc) <- c("pgsc_dmg", "pgsc_dmt", "pgsc_dmc", "pgsc_dmp", "func")
+head(assoc_pgsc)
 ```
 
 
-### Load samplelist
-```{r load samplelist}
-samplelist <- read.table("data/samplelist.txt", header=TRUE, sep = "\t")
-
-# new ordering! (trial number, condition, cultivar)
-samplelist_ordered <- samplelist[with(samplelist, order(trial_number, condition, cultivar)),]
-head(samplelist_ordered)
+### Samplelist processing
+```{r child = 'Modify_RNASeq_Samplelist.Rmd'}
 ```
+
+
+## Expected counts
+### Read input data: Expected counts per gene (from RSEM)
+```{r load exp counts}
+exp_counts_genes <- read.table("data/genes_expCounts.tsv", header = TRUE, sep = "\t", row.names = 1)
+dim(exp_counts_genes)
+
+class(exp_counts_genes)
+
+# change colnames of exp_counts_genes
+colnames(exp_counts_genes)
+colnames(exp_counts_genes) <- samplelist_modified$sample_name
+
+# look at first rownames
+head(rownames(exp_counts_genes))
+
+# plot histogram of log-counts of 1st column (=sample)
+hist(log(exp_counts_genes[,1]), breaks = 100, main = "log counts of all genes for first sample")
+```
+
+
+### Round expected counts to achieve integer values
+```{r round exp counts}
+# class of values for one sample before rounding
+class(exp_counts_genes$t01_a_c)
+
+# rounding
+exp_counts_genes_rounded <- round(exp_counts_genes, digits = 0)
+
+# convert to integer
+#exp_counts_genes_rounded_int <- sapply(exp_counts_genes_rounded, as.integer)
+#exp_counts_genes_rounded_int <- as.data.frame(exp_counts_genes_rounded_int)
+#exp_counts_genes_rounded <- as.integer(exp_counts_genes_rounded)
+
+#class(exp_counts_genes_rounded_int)
+
+# class of rounded values --> should be integer
+class(exp_counts_genes_rounded$t01_a_c)
+# --> is not integer, will be solved in next code chunk!
+
+# other possibilities for rounding
+# exp_counts_genes_ceiling <- ceiling(exp_counts_genes) # always round up
+# exp_counts_genes_floor <- floor(exp_counts_genes) # always round down
+
+# plot histogram of log-transformed counts after different rounding procedures
+par(mfrow=c(1,2))
+hist(log(exp_counts_genes[,1]), breaks=100, main="original", ylim = c(0,2000))
+hist(log(exp_counts_genes_rounded[,1]), breaks=100, main="rounded")
+#hist(log(exp_counts_genes_ceiling[,1]), breaks=100, main="ceiling")
+#hist(log(exp_counts_genes_floor[,1]), breaks=100, main="floor")
+par(mfrow=c(1,1))
+```
+
+
+### Change class for all columns from numeric to integer
+```{r change counts to integer class}
+class(exp_counts_genes_rounded$t01_a_c)
+
+for (i in 1:48) {
+  exp_counts_genes_rounded[,i] <- as.integer(exp_counts_genes_rounded[,i])
+}
+
+class(exp_counts_genes_rounded$t01_a_c)
+class(exp_counts_genes_rounded)
+```
+
+
+### Define subsets of ROUNDED exp-counts-genes for greenhouse and field separately
+```{r define greenhouse and field counts}
+counts_greenhouse <- exp_counts_genes_rounded[,which(samplelist_modified$cultivation=="greenhouse")]
+counts_field <- exp_counts_genes_rounded[,which(samplelist_modified$cultivation=="field")]
+```
+
+
+### Summary of means of ORIGINAL expected counts
+```{r summary of means of original exp counts}
+# calculate the mean per row (per gene over all samples)
+exp_counts_genes_mean <- apply(exp_counts_genes, 1, mean) 
+head(exp_counts_genes_mean)
+
+# histogram of log10-transformed means per gene
+hist(log10(exp_counts_genes_mean))
+
+# summary of means per gene
+summary(exp_counts_genes_mean)
+
+length(which(exp_counts_genes_mean == 0))
+# 5333 genes have mean of zero (that is they have no counts at all, sum is also zero -> see below)
+length(which(exp_counts_genes_mean < 1))
+# 16166 genes have mean less than 1
+length(which(exp_counts_genes_mean >= 1))
+# 26868 genes have mean greater than or equal to 1
+```
+
+
+### Summary of means of ROUNDED expected counts
+```{r summary of means of rounded exp counts}
+# calculate the mean per row (per gene over all samples)
+exp_counts_genes_rounded_mean <- apply(exp_counts_genes_rounded, 1, mean)
+head(exp_counts_genes_rounded_mean)
+
+# histogram of log10-transformed means per gene
+hist(log10(exp_counts_genes_rounded_mean))
+
+# summary of means per gene
+summary(exp_counts_genes_rounded_mean)
+
+length(which(exp_counts_genes_rounded_mean == 0))
+# 6147 genes have mean of zero
+length(which(exp_counts_genes_rounded_mean != 0))
+# 36887 genes have mean unequal to zero
+length(which(exp_counts_genes_rounded_mean < 1))
+# 16161 genes have mean less than 1
+length(which(exp_counts_genes_rounded_mean >= 1))
+# 26873 genes have mean greater than or equal to 1
+```
+
+
+
+
+
+
 
