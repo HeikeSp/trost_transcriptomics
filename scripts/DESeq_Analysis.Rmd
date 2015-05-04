@@ -1,0 +1,949 @@
+---
+title: "DESeq Analysis"
+author: "Heike Sprenger"
+date: "Tuesday, September 02, 2014"
+output: html_document
+---
+
+DESeq Analysis
+========================================================
+
+## Input: Expected counts that are filtered**
+
+### Set working directory
+```{r set working directory}
+getwd()
+setwd("repos/trost_transcriptomics")
+```
+
+
+### Load workspace, packages and scripts
+```{r load workspace}
+load("DESeq_Analysis.RData")
+
+# load packages
+library(DESeq2)
+library(gplots)
+library(RColorBrewer)
+library(genefilter)
+library(pcaMethods)
+library(MLSeq)
+#library(kernlab)
+
+# source functions
+source("../libpurzel/colors.R")
+source("../libpurzel/func_pca_plots.R")
+
+```
+
+
+#### Load data
+```{r load data}
+counts_keep <- read.table("../output/counts_keep.txt", sep="\t", header=T)
+samplelist_ordered <- read.table("../output/samplelist_ordered2.txt", sep="\t", header=T)
+head(samplelist_ordered)
+
+# relevel cultivar
+samplelist_ordered$cultivar <- factor(samplelist_ordered$cultivar, levels=c("Alegria", "Milva", "Desiree", "Saturna"))
+
+# relevel trial_name
+levels(samplelist_ordered$trial_name)
+samplelist_ordered$trial_name <- factor(samplelist_ordered$trial_name, 
+                                        levels=c("JKI-GWH1", "MPITest1.2", "MPITest2", 
+                                                 "JKIFeld2012", "MPIFeld2011", "MPIFeld2012") )
+
+samplelist_ordered_g <- subset(samplelist_ordered, cultivation=="greenhouse")
+samplelist_ordered_f <- subset(samplelist_ordered, cultivation=="field")
+
+
+# load PGSC IDs and annotations
+assoc_pgsc <- read.table("../../data/pgsc_data/PGSC_DM_v3.4_g2t2c2p2func_edit.txt")
+head(assoc_pgsc)
+colnames(assoc_pgsc) <- c("pgsc_dmg", "pgsc_dmt", "pgsc_dmc", "pgsc_dmp", "func")
+```
+
+
+#### build DESeqDataSet
+```{r build DESeqDataSet}
+ddsFullCountTable <- DESeqDataSetFromMatrix(
+  countData = counts_keep,
+  colData = samplelist_ordered,
+  design = ~ cultivar + condition)
+
+ddsFullCountTable
+```
+
+
+#### run differential expression pipeline
+```{r run differential expression pipeline}
+# all samples
+dds <- DESeq(ddsFullCountTable)
+
+# only greenhouse
+dds_greenhouse <- ddsFullCountTable[ , ddsFullCountTable$cultivation == "greenhouse"]
+dds_greenhouse$cultivation <- droplevels(dds_greenhouse$cultivation)
+dds_greenhouse$trial <- droplevels(dds_greenhouse$trial)
+dds_greenhouse$trial_name <- droplevels(dds_greenhouse$trial_name)
+
+dds_greenhouse <- DESeq(dds_greenhouse)
+
+# only field
+dds_field <- ddsFullCountTable[ , ddsFullCountTable$cultivation == "field"]
+dds_field$cultivation <- droplevels(dds_field$cultivation)
+dds_field$trial <- droplevels(dds_field$trial)
+dds_field$tria_name <- droplevels(dds_field$trial_name)
+
+dds_field <- DESeq(dds_field)
+```
+
+
+#### inspecting results table
+```{r inspecting results table}
+res <- results(dds)
+res
+
+# meaning of the columns:
+mcols(res, use.names=TRUE)
+
+res_greenhouse <- results(dds_greenhouse)
+res_greenhouse
+
+res_field <- results(dds_field)
+res_field
+```
+
+
+#### significant results
+```{r significant results}
+resSig <- res[ which(res$padj < 0.05 ), ]
+dim(resSig)
+
+resSig_down <- res[ which(res$padj < 0.05 & res$log2FoldChange<0), ]
+resSig_up <- res[ which(res$padj < 0.05 & res$log2FoldChange>0), ]
+dim(resSig_down)
+dim(resSig_up)
+
+# strongest downregulation
+head( resSig[ order( resSig$log2FoldChange ), ] )
+# strongest upregulation
+tail( resSig[ order( resSig$log2FoldChange ), ] )
+```
+
+#### significant results greenhouse
+```{r significant results greenhouse}
+resSig_greenhouse <- res_greenhouse[ which(res_greenhouse$padj < 0.05 ), ]
+dim(resSig_greenhouse)
+names(resSig_greenhouse)
+summary(resSig_greenhouse$padj)
+
+resSig_greenhouse_down <- resSig_greenhouse[ which(resSig_greenhouse$log2FoldChange<0) , ]
+resSig_greenhouse_up <- resSig_greenhouse[ which(resSig_greenhouse$log2FoldChange>0) , ]
+
+dim(resSig_greenhouse_down)
+dim(resSig_greenhouse_up)
+```
+
+
+#### significant results field
+```{r significant results field}
+resSig_field <- res_field[ which(res_field$padj < 0.05 ), ]
+dim(resSig_field)
+
+resSig_field_down <- resSig_field[ which(resSig_field$log2FoldChange<0), ]
+resSig_field_up <- resSig_field[ which(resSig_field$log2FoldChange>0), ]
+
+dim(resSig_field_down)
+dim(resSig_field_up)
+```
+
+#### intersection greenhouse-field
+```{r intersection greenhouse-field}
+length(intersect(rownames(resSig_field_down), rownames(resSig_greenhouse_down)))
+# 246
+
+length(intersect(rownames(resSig_field_up), rownames(resSig_greenhouse_up)))
+# 146
+```
+
+
+#### diagnostic plots
+```{r diagnostic plots}
+plotMA(res, ylim=c(-2, 2))
+plotDispEsts( dds)
+hist( res$pvalue, breaks=20, col="grey" )
+
+plotMA(res_greenhouse, ylim=c(-2, 2))
+plotDispEsts( dds_greenhouse)
+hist( res_greenhouse$pvalue, breaks=20, col="grey" )
+
+plotMA(res_field, ylim=c(-2, 2))
+plotDispEsts( dds_field)
+hist( res_field$pvalue, breaks=20, col="grey" )
+```
+
+
+#### adding gene names
+```{r adding gene names}
+res$ensembl <- rownames(res)
+head(res$ensembl)
+
+library(biomaRt)
+listMarts()
+
+plants_mart_22=useMart("plants_mart_22")
+listDatasets(plants_mart_22)
+
+stu_ensembl = useMart( "plants_mart_22", dataset = "stuberosum_eg_gene" )
+
+listAttributes(stu_ensembl)
+listFilters(stu_ensembl)
+
+genemap <- getBM( attributes = c("ensembl_gene_id", "pgsc", "interpro_id", "interpro_description", "description"), 
+                  filters = "ensembl_gene_id",
+                  values = res$ensembl,
+                  mart = stu_ensembl )
+
+head(genemap)
+
+idx <- match( res$ensembl, genemap$ensembl_gene_id )
+
+res$pgsc <- genemap$pgsc[ idx ]
+res$desc <- genemap$description[ idx ]
+res$interpro_id <- genemap$interpro_id[ idx ]
+res$interpro_desc <- genemap$interpro_description[ idx ]
+tail(res)
+
+res_greenhouse$pgsc <- genemap$pgsc[ idx ]
+res_greenhouse$desc <- genemap$description[ idx ]
+res_greenhouse$interpro_id <- genemap$interpro_id[ idx ]
+res_greenhouse$interpro_desc <- genemap$interpro_description[ idx ]
+
+res_field$pgsc <- genemap$pgsc[ idx ]
+res_field$desc <- genemap$description[ idx ]
+res_field$interpro_id <- genemap$interpro_id[ idx ]
+res_field$interpro_desc <- genemap$interpro_description[ idx ]
+```
+
+
+#### export results
+```{r export results}
+write.csv(as.data.frame(res), "../output/DESeq2_results.csv")
+
+write.csv(as.data.frame(res_greenhouse), "../output/DESeq2_results_greenhouse.csv")
+write.csv(as.data.frame(res_field), "../output/DESeq2_results_field.csv")
+```
+
+
+### rlog-transformed data
+```{r rlog-transformed data}
+rld <- rlog(dds)
+head(assay(rld))
+
+rld_not_blind <- rlog(dds, blind=F)
+
+par( mfrow = c( 1, 2 ) )
+# all samples
+plot( log2( 1+counts(dds, normalized=TRUE)[, 1:2] ), col="#00000020", pch=20, cex=0.3 )
+plot( assay(rld)[, 1:2], col="#00000020", pch=20, cex=0.3 )
+
+#par( mfrow = c( 1, 3 ) )
+plot(apply(assay(rld), 1, mean), apply(assay(rld), 1, var))
+plot(apply(assay(rld_not_blind), 1, mean), apply(assay(rld_not_blind), 1, var))
+
+#plot(apply(log2(counts_keep), 1, mean), apply(log2(counts_keep), 1, var))
+
+# variance Stabilizing Transformation (vst)
+vsd <- varianceStabilizingTransformation(dds)
+vsd_not_blind <- varianceStabilizingTransformation(dds, blind=F)
+
+plot(apply(assay(vsd), 1, mean), apply(assay(vsd), 1, var))
+plot(apply(assay(vsd_not_blind), 1, mean), apply(assay(vsd_not_blind), 1, var))
+
+
+#plotPCA(vsd)
+#plotPCA(rld)
+
+# greenhouse
+rld_greenhouse <- rlog(dds_greenhouse)
+plot( log2( 1+counts(dds_greenhouse, normalized=TRUE)[, 1:2] ), col="#00000020", pch=20, cex=0.3 )
+plot( assay(rld_greenhouse)[, 1:2], col="#00000020", pch=20, cex=0.3 )
+
+# field
+rld_field <- rlog(dds_field)
+plot( log2( 1+counts(dds_field, normalized=TRUE)[, 1:2] ), col="#00000020", pch=20, cex=0.3 )
+plot( assay(rld_field)[, 1:2], col="#00000020", pch=20, cex=0.3 )
+
+par( mfrow = c( 1, 1 ) )
+```
+
+**Per-gene standard deviation (taken across samples), against the rank of the mean, for the shifted logarithm log2(n + 1) (left), the regularized log transformation (center) and the variance stabilizing transformation (right).**
+```{r}
+library(vsn)
+
+par(mfrow=c(1,3))
+meanSdPlot(log2(counts(dds,normalized=TRUE) + 1), ylim = c(0,2.5))
+meanSdPlot(assay(rld), ylim = c(0,2.5))
+meanSdPlot(assay(vsd), ylim = c(0,2.5))
+```
+
+
+### sample distances
+```{r sample distances}
+sampleDists <- dist( t( assay(rld) ) )
+sampleDistMatrix <- as.matrix( sampleDists )
+rownames(sampleDistMatrix) <- paste( rld$condition,
+                                     rld$cultivar, sep="-" )
+colnames(sampleDistMatrix) <- NULL
+
+colours = colorRampPalette( rev(brewer.pal(9, "Blues")) )(255)
+heatmap.2( sampleDistMatrix, trace="none", col=colours)
+
+
+ramp <- 1:2/2
+cols <- c(rgb(ramp, 0, 0),
+          rgb(0, ramp, 0))
+print( plotPCA( rld, intgroup = c( "cultivation", "condition"), col=cols ) )
+
+pca_res <- pca(t(assay(rld)), center=T, scale="none", nPcs=5, method="rnipals")
+pca_res@R2
+pairs(pca_res@scores, col=dds$condition, pch=19)
+pairs(pca_res@scores, col=dds$cultivation, pch=19)
+pairs(pca_res@scores, col=dds$cultivar, pch=19)
+pairs(pca_res@scores, col=dds$trial, pch=19)
+
+pdf("../figures/pca_rld_all_samples.pdf")
+palette("default")
+plot(pca_res@scores[,1], pca_res@scores[,3], 
+     pch=c(19,17)[dds$condition], 
+     #pch=19,
+     col=dds$trial, cex=2, 
+     xlab="PC1 (25.2%)",
+     ylab="PC2 (13.7%)")
+     #ylim=c(-80,80))
+
+text(pca_res@scores[,1], pca_res@scores[,3], labels=dds$trial_name)
+
+legend("bottomleft", fill=1:6, legend=levels(dds$trial), cex=1)
+legend("bottomright", pch=1:2, legend=levels(dds$condition), cex=1)
+dev.off()
+
+
+library( "genefilter" )
+topVarGenes <- head( order( rowVars( assay(rld) ), decreasing=TRUE ), 35 )
+
+
+heatmap.2( assay(rld)[ topVarGenes, ], scale="row",
+           trace="none", dendrogram="column",
+           col = colorRampPalette( rev(brewer.pal(9, "RdBu")) )(255))
+```
+
+
+```{r PCA all samples}
+palette(cols_trial)
+
+# for phd-thesis
+pdf("../../../../Doktorarbeit/figures/rna_pca_all_rld.pdf", width=6, height=6)
+par(mar=c(4.5, 4.5, 1.5, 0.5))
+func_pca_plot(pca_res, 1, 3, factors = samplelist_ordered, color_factor = "trial_name", 
+              pos1="bottomleft", leg1=1.2, symbol_size=2,
+              legend.text=c("JKI GH1", "MPI-MP GH1", "MPI-MP GH2", 
+                           "JKI field 2012", "MPI-MP field 2011", "MPI-MP field 2012"),
+              ymin=-100)
+dev.off()
+
+
+pdf("../../../../Doktorarbeit/figures/rna_pca_all_rld_treatment.pdf", width=6, height=6)
+par(mar=c(4.5, 4.5, 1.5, 0.5))
+func_pca_plot_sym(pca_res, 1, 3, factors = samplelist_ordered, color_factor = "trial_name",
+                  symbol_factor="condition", symbol_size=2,
+                  pos1="bottomright", leg1=1.2, pos2="bottomleft", leg2=1.2,
+                  legend.text=c("JKI GH1", "MPI-MP GH1", "MPI-MP GH2", 
+                  "JKI field 2012", "MPI-MP field 2011", "MPI-MP field 2012"),
+                  ymin=-100)
+dev.off()
+
+palette(cols_treatment)
+
+# for publication
+#pdf("../../../Manuskripte/tab/rna_pca_all_rld_treatment.pdf", width=6, height=6)
+png("../../../Manuskripte/tba/rna_pca_all_rld_treatment.png", width=2000, height=2000, res=300)
+par(mar=c(4.5, 4.5, 1.5, 0.5))
+func_pca_plot_sym(pca_res, 1, 3, factors = samplelist_ordered, color_factor = "condition",
+                  symbol_factor="cultivation", symbol_size=2, 
+                  pos1="bottomright", leg1=1.5, pos2="topright", leg2=1.5)
+dev.off()
+```
+
+
+### sample distances greenhouse
+```{r sample distances greenhouse}
+sampleDists_greenhouse <- dist( t( assay(rld_greenhouse) ) )
+sampleDistMatrix_greenhouse <- as.matrix( sampleDists_greenhouse )
+rownames(sampleDistMatrix_greenhouse) <- paste( rld_greenhouse$condition,
+                                                rld_greenhouse$cultivar, sep="-" )
+colnames(sampleDistMatrix_greenhouse) <- NULL
+
+colours = colorRampPalette( rev(brewer.pal(9, "Blues")) )(255)
+heatmap.2( sampleDistMatrix_greenhouse, trace="none", col=colours)
+
+
+ramp <- 1:2/2
+cols <- c(rgb(ramp, 0, 0),
+          rgb(0, 0, ramp),
+          rgb(ramp, 0, ramp),
+          rgb(0, ramp, 0))
+print( plotPCA( rld_greenhouse, intgroup = c( "cultivar", "condition"), col=cols ) )
+
+
+topVarGenes_greenhouse <- head( order( rowVars( assay(rld_greenhouse) ), decreasing=TRUE ), 35 )
+
+
+heatmap.2( assay(rld_greenhouse)[ topVarGenes_greenhouse, ], scale="row",
+           trace="none", dendrogram="column",
+           col = colorRampPalette( rev(brewer.pal(9, "RdBu")) )(255))
+```
+
+### PCA greenhouse
+```{r PCA greenhouse}
+pca_greenhouse <- pca(t(assay(rld_greenhouse)), center=T, scale="none", nPcs=5, method="rnipals")
+pca_greenhouse@R2
+palette("default")
+pairs(pca_greenhouse@scores, col=dds_greenhouse$condition, pch=19, cex=1.5)
+pairs(pca_greenhouse@scores, col=dds_greenhouse$cultivar, pch=19)
+
+pdf("../figures/pca_rld_greenhouse_samples.pdf")
+plot(pca_greenhouse@scores[,1], pca_greenhouse@scores[,3], 
+     pch=c(19,17)[dds_greenhouse$condition], 
+     col=dds_greenhouse$cultivar, cex=2, 
+     xlab="PC1 (19.9%)",
+     ylab="PC3 (18.1%)")
+     #xlim=c(-90,60))
+text(pca_greenhouse@scores[,1], pca_greenhouse@scores[,3], labels=dds_greenhouse$trial_number, pos=4)
+legend("bottomleft", fill=1:4, legend=levels(dds_greenhouse$cultivar))
+dev.off()
+
+pdf("../../../../Doktorarbeit/figures/rna_all_pot_cultivar_treatment.pdf", width=6, height=6)
+palette(cols_cultivar2)
+par(mar=c(4.5, 4.5, 0.5, 0.5))
+plot(pca_greenhouse@scores[,1], pca_greenhouse@scores[,2], 
+     pch=c(19,17)[dds_greenhouse$condition], 
+     col=dds_greenhouse$cultivar, cex=2, 
+     xlab="PC1 (19.9%)",
+     ylab="PC2 (18.1%)",
+     #xlim=c(-90,60),
+     cex.lab=1.4, 
+     cex.axis=1.2)
+legend("topright", fill=1:4, legend=levels(dds_greenhouse$cultivar), bty="n", cex=1.2)
+legend("topleft", pch=c(19,17), legend=levels(dds_greenhouse$condition), bty="n", cex=1.2)
+dev.off()
+```
+
+
+### aggregate greenhouse rld
+```{r aggregate greenhouse rld}
+dim(t(assay(rld_greenhouse)))
+t(assay(rld_greenhouse))[1:5,1:5]
+
+source("../functions/func_aggregate_values.R")
+
+rld_greenhouse_agg <- func_agg_2fac(t(assay(rld_greenhouse)), samplelist_ordered_g, "condition", "cultivar", mean)
+dim(rld_greenhouse_agg)
+
+cultivar_g <- as.factor(unlist(lapply(strsplit(as.character(rld_greenhouse_agg$sample),"\\."), function(x) x[2])))
+cultivar_g <- factor(cultivar_g, levels=c("Alegria", "Milva", "Desiree", "Saturna"))
+condition_g <- as.factor(unlist(lapply(strsplit(as.character(rld_greenhouse_agg$sample),"\\."), function(x) x[1])))
+
+pca_greenhouse_agg <- pca(rld_greenhouse_agg, center=T, scale="none", nPcs=5, method="rnipals")
+pca_greenhouse_agg@R2
+
+pca_greenhouse_agg_loadings <- pca_greenhouse_agg@loadings
+# merge loadings with PGSC associations
+pca_greenhouse_agg_loadings_assoc <- merge(pca_greenhouse_agg_loadings, assoc_pgsc, by.x="row.names", by.y="pgsc_dmg")
+write.table(pca_greenhouse_agg_loadings_assoc, "../output/pca_greenhouse_agg_loadings.txt", sep="\t")
+
+palette(cols_treatment)
+pairs(pca_greenhouse_agg@scores, col=condition_g, pch=19)
+plot(pca_greenhouse_agg@scores[,1], pca_greenhouse_agg@scores[,4], col=condition_g, pch=19)
+text(pca_greenhouse_agg@scores[,1], pca_greenhouse_agg@scores[,4], labels=rld_greenhouse_agg$sample)
+
+palette(cols_cultivar2)
+pairs(pca_greenhouse_agg@scores, col=cultivar_g, pch=19)
+plot(pca_greenhouse_agg@scores[,1], pca_greenhouse_agg@scores[,4], col=cultivar_g, pch=19)
+text(pca_greenhouse_agg@scores[,1], pca_greenhouse_agg@scores[,4], labels=rld_greenhouse_agg$sample)
+
+
+pdf("../../../../Doktorarbeit/figures/rna_mean_pot_cultivar_treatment.pdf", width=6, height=6)
+palette(cols_cultivar2)
+par(mar=c(4.5, 4.5, 0.5, 0.5))
+plot(pca_greenhouse_agg@scores[,1], pca_greenhouse_agg@scores[,4], 
+     pch=c(19,17)[condition_g], 
+     col=cultivar_g, cex=2, 
+     xlab="PC1 (33.4%)",
+     ylab="PC4 (14.0%)",
+     cex.lab=1.4, 
+     cex.axis=1.2)
+#legend("topright", fill=1:4, legend=levels(dds_greenhouse$cultivar), bty="n", cex=1.2)
+#legend("topleft", pch=c(19,17), legend=levels(dds_greenhouse$condition), bty="n", cex=1.2)
+dev.off()
+
+# for publication
+png("../../../Manuskripte/tba/rna_mean_pot_cultivar_treatment.png", width=2000, height=2000, res=300)
+palette(cols_treatment)
+par(mar=c(4.5, 4.5, 1.5, 0.5))
+plot(pca_greenhouse_agg@scores[,1], pca_greenhouse_agg@scores[,4], 
+     pch=c(15,16,17,18)[cultivar_g], 
+     col=condition_g, cex=2, 
+     xlab="PC1 (33.4%)",
+     ylab="PC4 (14.0%)",
+     cex.lab=1.4, 
+     cex.axis=1.2,
+     xlim=c(-70,70), ylim=c(-31,31) )
+legend("topleft", levels(cultivar_g), pch=c(15,16,17,18),  legend=levels(cultivar_g), bty="n", cex=1.5)
+legend("bottomleft", levels(cultivar_g), fill=cols_treatment, legend=levels(condition_g), bty="n", cex=1.5)
+dev.off()
+
+
+# sample similarity heatmap
+sampleDists_greenhouse_agg <- dist( rld_greenhouse_agg )
+sampleDistMatrix_greenhouse_agg <- as.matrix( sampleDists_greenhouse_agg )
+dim(sampleDistMatrix_greenhouse_agg)
+rownames(sampleDistMatrix_greenhouse_agg) <- paste( condition_g, cultivar_g, sep="-" )
+colnames(sampleDistMatrix_greenhouse_agg) <- rownames(sampleDistMatrix_greenhouse_agg)
+
+colours = colorRampPalette( rev(brewer.pal(9, "Blues")) )(255)
+heatmap.2( sampleDistMatrix_greenhouse_agg, trace="none", col=colours, margins=c(13,13))
+```
+
+
+### sample distances field
+```{r sample distances field}
+sampleDists_field <- dist( t( assay(rld_field) ) )
+sampleDistMatrix_field <- as.matrix( sampleDists_field )
+rownames(sampleDistMatrix_field) <- paste( rld_field$trial,
+                                           rld_field$condition,
+                                           rld_field$cultivar, 
+                                           sep="-" )
+colnames(sampleDistMatrix_field) <- NULL
+
+colours = colorRampPalette( rev(brewer.pal(9, "Blues")) )(255)
+heatmap.2( sampleDistMatrix_field, trace="none", col=colours)
+
+
+ramp <- 1:2/2
+cols <- c(rgb(ramp, 0, 0),
+          rgb(0, 0, ramp),
+          rgb(ramp, 0, ramp),
+          rgb(0, ramp, 0))
+print( plotPCA( rld_field, intgroup = c( "cultivar", "condition"), col=cols ) )
+
+cols <- c(rgb(ramp, 0, 0),
+          rgb(0, 0, ramp),
+          rgb(0, ramp, 0))
+print( plotPCA( rld_field, intgroup = c( "trial", "condition"), col=cols ) )
+
+pca_field <- pca(t(assay(rld_field)), center=T, scale="none", nPcs=5, method="rnipals")
+pca_field@R2
+pairs(pca_field@scores, col=dds_field$condition, pch=19)
+pairs(pca_field@scores, col=dds_field$cultivar, pch=19)
+
+plot(pca_field@scores[,1], pca_field@scores[,2], 
+     pch=c(19,17)[dds_field$condition], 
+     col=dds_field$cultivar, cex=2, 
+     xlab="PC1 (26.4%)",
+     ylab="PC2 (14.9%)")
+legend("bottomright", fill=1:4, legend=levels(dds_field$cultivar))
+
+
+topVarGenes_field <- head( order( rowVars( assay(rld_field) ), decreasing=TRUE ), 35 )
+
+heatmap.2( assay(rld_field)[ topVarGenes_field, ], scale="row",
+           trace="none", dendrogram="column",
+           col = colorRampPalette( rev(brewer.pal(9, "RdBu")) )(255))
+```
+
+
+### PCA field
+```{r PCA field}
+pca_field <- pca(t(assay(rld_field)), center=T, scale="none", nPcs=5, method="rnipals")
+pca_field@R2
+palette(cols_treatment)
+pairs(pca_field@scores, col=dds_field$condition, pch=19, cex=1.5)
+palette(cols_cultivar)
+pairs(pca_field@scores, col=dds_field$cultivar, pch=19)
+
+pdf("../figures/pca_rld_field_samples.pdf")
+plot(pca_field@scores[,1], pca_field@scores[,2], 
+     pch=c(19,17)[dds_field$condition], 
+     col=dds_field$cultivar, cex=2, 
+     xlab="PC1 (26.4%)",
+     ylab="PC2 (14.9%)")
+     #xlim=c(-90,60))
+text(pca_field@scores[,1], pca_field@scores[,2], labels=dds_field$trial_number, pos=4)
+legend("bottomright", fill=1:4, legend=levels(dds_field$cultivar))
+dev.off()
+
+pdf("../../../../Doktorarbeit/figures/rna_all_field_cultivar_treatment.pdf", width=6, height=6)
+palette(cols_cultivar2)
+par(mar=c(4.5, 4.5, 0.5, 0.5))
+plot(pca_field@scores[,1], pca_field@scores[,2], 
+     pch=c(19,17)[dds_field$condition], 
+     col=dds_field$cultivar, cex=2, 
+     xlab="PC1 (26.4%)",
+     ylab="PC2 (14.9%)",
+     cex.lab=1.4, 
+     cex.axis=1.2)
+legend("bottomright", fill=1:4, legend=levels(dds_field$cultivar), bty="n", cex=1.2)
+legend("bottomleft", pch=c(19,17), legend=levels(dds_field$condition), bty="n", cex=1.2)
+dev.off()
+```
+
+
+### aggregate field rld
+```{r aggregate field rld}
+dim(t(assay(rld_field)))
+t(assay(rld_field))[1:5,1:5]
+
+source("../functions/func_aggregate_values.R")
+
+rld_field_agg <- func_agg_2fac(t(assay(rld_field)), samplelist_ordered_g, "condition", "cultivar", mean)
+dim(rld_field_agg)
+
+cultivar_f <- as.factor(unlist(lapply(strsplit(as.character(rld_field_agg$sample),"\\."), function(x) x[2])))
+cultivar_f <- factor(cultivar_f, levels=c("Alegria", "Milva", "Desiree", "Saturna"))
+condition_f <- as.factor(unlist(lapply(strsplit(as.character(rld_field_agg$sample),"\\."), function(x) x[1])))
+
+pca_field_agg <- pca(rld_field_agg, center=T, scale="none", nPcs=5, method="rnipals")
+pca_field_agg@R2
+
+palette(cols_treatment)
+pairs(pca_field_agg@scores, col=condition_f, pch=19)
+plot(pca_field_agg@scores[,1], pca_field_agg@scores[,4], col=condition_f, pch=19)
+text(pca_field_agg@scores[,1], pca_field_agg@scores[,4], labels=rld_field_agg$sample)
+
+palette(cols_cultivar2)
+pairs(pca_field_agg@scores, col=cultivar_f, pch=19)
+plot(pca_field_agg@scores[,1], pca_field_agg@scores[,2], col=cultivar_f, pch=19)
+text(pca_field_agg@scores[,1], pca_field_agg@scores[,2], labels=rld_field_agg$sample)
+
+
+pdf("../../../../Doktorarbeit/figures/rna_mean_field_cultivar_treatment.pdf", width=6, height=6)
+palette(cols_cultivar2)
+par(mar=c(4.5, 4.5, 0.5, 0.5))
+plot(pca_field_agg@scores[,1], pca_field_agg@scores[,4], 
+     pch=c(19,17)[condition_f], 
+     col=cultivar_f, cex=2, 
+     xlab="PC1 (30.7%)",
+     ylab="PC4 (15.7%)",
+     cex.lab=1.4, 
+     cex.axis=1.2)
+#legend("topright", fill=1:4, legend=levels(dds_field$cultivar), bty="n", cex=1.2)
+#legend("topleft", pch=c(19,17), legend=levels(dds_field$condition), bty="n", cex=1.2)
+dev.off()
+
+
+png("../../../Manuskripte/tba/rna_mean_field_cultivar_treatment.png", width=2000, height=2000, res=300)
+palette(cols_treatment)
+par(mar=c(4.5, 4.5, 1.5, 0.5))
+plot(pca_field_agg@scores[,1], pca_field_agg@scores[,4], 
+     pch=c(15,16,17,18)[cultivar_f], 
+     col=condition_f, cex=2, 
+     xlab="PC1 (30.7%)",
+     ylab="PC4 (15.7%)",
+     cex.lab=1.4, 
+     cex.axis=1.2)
+legend("topleft", levels(cultivar_f), pch=c(15,16,17,18),  legend=levels(cultivar_f), bty="n", cex=1.5)
+legend("bottomleft", levels(cultivar_f), fill=cols_treatment, legend=levels(condition_f), bty="n", cex=1.5)
+dev.off()
+
+
+
+# sample similarity heatmap
+sampleDists_field_agg <- dist( rld_field_agg )
+sampleDistMatrix_field_agg <- as.matrix( sampleDists_field_agg )
+dim(sampleDistMatrix_field_agg)
+rownames(sampleDistMatrix_field_agg) <- paste( condition_f, cultivar_f, sep="-" )
+colnames(sampleDistMatrix_field_agg) <- rownames(sampleDistMatrix_field_agg)
+
+colours = colorRampPalette( rev(brewer.pal(9, "Blues")) )(255)
+heatmap.2( sampleDistMatrix_field_agg, trace="none", col=colours, margins=c(13,13))
+```
+
+
+
+```{r greenhouse-tolerant: control vs. stress}
+source("../functions/func_deseq2_pipeline.R")
+
+# greenhouse tolerant samples: control vs. stress
+dds_greenhouse_tolerant <- ddsFullCountTable[ , ddsFullCountTable$cultivation == "greenhouse" & 
+                                                   ddsFullCountTable$tolerance == "tolerant" ]
+
+res_greenhouse_tolerant <- func_deseq2_pipeline(dds_sub = dds_greenhouse_tolerant)
+names(res_greenhouse_tolerant)
+dim(res_greenhouse_tolerant$resSig_up)
+head(rownames(res_greenhouse_tolerant$resSig_up))
+
+func_deseq2_plots(filename="../figures/res_greenhouse_tolerant.pdf", res_greenhouse_tolerant)
+
+
+edgeR_res_greenhouse_tolerant_all <- read.table("../output/edgeR_res_greenhouse_tolerant_all.txt", header=T, sep="\t")
+edgeR_res_greenhouse_tolerant_sig <- read.table("../output/edgeR_res_greenhouse_tolerant_sig.txt", header=T, sep="\t")
+edgeR_res_greenhouse_tolerant_sig_down <- read.table("../output/edgeR_res_greenhouse_tolerant_sig_down.txt", header=T, sep="\t")
+edgeR_res_greenhouse_tolerant_sig_up <- read.table("../output/edgeR_res_greenhouse_tolerant_sig_up.txt", header=T, sep="\t")
+
+dim(edgeR_res_greenhouse_tolerant_sig_up)
+
+length(intersect(rownames(edgeR_res_greenhouse_tolerant_sig_down), rownames(res_greenhouse_tolerant$resSig_down)))
+length(intersect(rownames(edgeR_res_greenhouse_tolerant_sig_up), rownames(res_greenhouse_tolerant$resSig_up)))
+
+plot(edgeR_res_greenhouse_tolerant_all$logFC, res_greenhouse_tolerant$res$log2FoldChange)
+```
+
+
+
+#### only greenhouse_1
+```{r only greenhouse_1}
+dds_greenhouse_1 <- ddsFullCountTable[ , ddsFullCountTable$trial == "greenhouse_1"]
+dds_greenhouse_1$cultivation <- droplevels(dds_greenhouse_1$cultivation)
+dds_greenhouse_1$trial <- droplevels(dds_greenhouse_1$trial)
+dds_greenhouse_1$trial_name <- droplevels(dds_greenhouse_1$trial_name)
+
+dds_greenhouse_1 <- DESeq(dds_greenhouse_1)
+
+res_greenhouse_1 <- results(dds_greenhouse_1)
+res_greenhouse_1
+
+resSig_greenhouse_1 <- res_greenhouse_1[ which(res_greenhouse_1$padj < 0.05 ), ]
+dim(resSig_greenhouse_1)
+
+resSig_greenhouse_1_down <- resSig_greenhouse_1[ which(resSig_greenhouse_1$log2FoldChange<0), ]
+resSig_greenhouse_1_up <- resSig_greenhouse_1[ which(resSig_greenhouse_1$log2FoldChange>0), ]
+dim(resSig_greenhouse_1_down)
+dim(resSig_greenhouse_1_up)
+
+plotMA(res_greenhouse_1, ylim=c(-5, 5))
+plotDispEsts( dds_greenhouse_1)
+hist( res_greenhouse_1$pvalue, breaks=20, col="grey" )
+
+rld_greenhouse_1 <- rlog(dds_greenhouse_1)
+plot( log2( 1+counts(dds_greenhouse_1, normalized=TRUE)[, 1:2] ), col="#00000020", pch=20, cex=0.3 )
+plot( assay(rld_greenhouse_1)[, 1:2], col="#00000020", pch=20, cex=0.3 )
+
+
+sampleDists_greenhouse_1 <- dist( t( assay(rld_greenhouse_1) ) )
+sampleDistMatrix_greenhouse_1 <- as.matrix( sampleDists_greenhouse_1 )
+rownames(sampleDistMatrix_greenhouse_1) <- paste( rld_greenhouse_1$condition,
+                                                rld_greenhouse_1$cultivar, sep="-" )
+#colnames(sampleDistMatrix_greenhouse_1) <- NULL
+colnames(sampleDistMatrix_greenhouse_1) <- rownames(sampleDistMatrix_greenhouse_1) 
+
+colours = colorRampPalette( rev(brewer.pal(9, "Blues")) )(255)
+
+lmat=rbind(4:3, 2:1)
+lhei=c(1, 4)
+lwid=c(1, 4)
+
+heatmap.2( sampleDistMatrix_greenhouse_1, trace="none", col=colours, lwid=c(1,4), lhei=c(1.5,4), margins =c(6,6))
+
+
+ramp <- 1:2/2
+cols <- c(rgb(ramp, 0, 0),
+          rgb(0, 0, ramp),
+          rgb(ramp, 0, ramp),
+          rgb(0, ramp, 0))
+print( plotPCA( rld_greenhouse_1, intgroup = c( "cultivar", "condition"), col=cols ) )
+
+class(rld_greenhouse_1)
+dim(t(assay(rld_greenhouse_1)))
+pca_greenhouse_1 <- pca(t(assay(rld_greenhouse_1)), center=T, scale="none", nPcs=5)
+pca_greenhouse_1@R2
+pairs(pca_greenhouse_1@scores, col=dds_greenhouse_1$condition, pch=19)
+pairs(pca_greenhouse_1@scores, col=dds_greenhouse_1$cultivar, pch=19)
+
+pdf("../figures/pca_rld_greenhouse_1_samples.pdf")
+plot(pca_greenhouse_1@scores[,1], pca_greenhouse_1@scores[,2], 
+     pch=c(19,17)[dds_greenhouse_1$condition], 
+     col=dds_greenhouse_1$cultivar, cex=2, 
+     xlab="PC1 (41.4%)",
+     ylab="PC2 (20.4%)")
+legend("bottomright", fill=1:4, legend=levels(dds_greenhouse_1$cultivar), horiz=T)
+dev.off()
+
+# source("../functions/func_pca_plots.R")
+# samplelist_ordered_g1 <- subset(samplelist_ordered, trial=="greenhouse_1")
+# func_pca_plot(pca_greenhouse_1, 1, 2, samplelist_ordered_g1, "condition", pos1="bottomleft", leg1=1)
+# func_pca_plot_sym(pca_greenhouse_1, 1, 2, samplelist_ordered_g1, "cultivar", "condition", 
+#                   pos1="bottomleft", leg1=1, pos2="bottomright", leg2=1)
+
+
+
+#topVarGenes_greenhouse_1 <- head( order( rowVars( assay(rld_greenhouse_1) ), decreasing=TRUE ), 50 )
+topVarGenes_greenhouse_1 <- head( order( resSig_greenhouse_1$padj ), 50)
+
+heatmap.2( assay(rld_greenhouse_1)[ topVarGenes_greenhouse_1, ], scale="row",
+           trace="none", dendrogram="both",
+           col = colorRampPalette( rev(brewer.pal(9, "RdBu")) )(255))
+```
+
+
+
+```{r}
+source("../functions/func_deseq2_pipeline.R")
+
+res_greenhouse_1_func <- func_deseq2_pipeline_trial(ddsFullCountTable, val1="greenhouse_1")
+names(res_greenhouse_1_func)
+
+func_deseq2_plots(filename="../figures/deseq_res_greenhouse_1.pdf", res_greenhouse_1_func)
+```
+
+
+
+
+#### only greenhouse_2
+```{r only greenhouse_2}
+dds_greenhouse_2 <- ddsFullCountTable[ , ddsFullCountTable$trial == "greenhouse_2"]
+dds_greenhouse_2$cultivation <- droplevels(dds_greenhouse_2$cultivation)
+dds_greenhouse_2$trial <- droplevels(dds_greenhouse_2$trial)
+dds_greenhouse_2$trial_name <- droplevels(dds_greenhouse_2$trial_name)
+
+dds_greenhouse_2 <- DESeq(dds_greenhouse_2)
+
+res_greenhouse_2 <- results(dds_greenhouse_2)
+res_greenhouse_2
+
+resSig_greenhouse_2 <- res_greenhouse_2[ which(res_greenhouse_2$padj < 0.05 ), ]
+dim(resSig_greenhouse_2)
+
+resSig_greenhouse_2_down <- resSig_greenhouse_2[ which(resSig_greenhouse_2$log2FoldChange<0), ]
+resSig_greenhouse_2_up <- resSig_greenhouse_2[ which(resSig_greenhouse_2$log2FoldChange>0), ]
+dim(resSig_greenhouse_2_down)
+dim(resSig_greenhouse_2_up)
+
+plotMA(res_greenhouse_2, ylim=c(-3, 3))
+plotDispEsts( dds_greenhouse_2)
+hist( res_greenhouse_2$pvalue, breaks=20, col="grey" )
+
+rld_greenhouse_2 <- rlog(dds_greenhouse_2)
+plot( log2( 1+counts(dds_greenhouse_2, normalized=TRUE)[, 1:2] ), col="#00000020", pch=20, cex=0.3 )
+plot( assay(rld_greenhouse_2)[, 1:2], col="#00000020", pch=20, cex=0.3 )
+
+
+sampleDists_greenhouse_2 <- dist( t( assay(rld_greenhouse_2) ) )
+sampleDistMatrix_greenhouse_2 <- as.matrix( sampleDists_greenhouse_2 )
+rownames(sampleDistMatrix_greenhouse_2) <- paste( rld_greenhouse_2$condition,
+                                                rld_greenhouse_2$cultivar, sep="-" )
+#colnames(sampleDistMatrix_greenhouse_2) <- NULL
+colnames(sampleDistMatrix_greenhouse_2) <- rownames(sampleDistMatrix_greenhouse_2)
+
+colours = colorRampPalette( rev(brewer.pal(9, "Blues")) )(255)
+heatmap.2( sampleDistMatrix_greenhouse_2, trace="none", col=colours, margins =c(6,6))
+
+
+ramp <- 1:2/2
+cols <- c(rgb(ramp, 0, 0),
+          rgb(0, 0, ramp),
+          rgb(ramp, 0, ramp),
+          rgb(0, ramp, 0))
+print( plotPCA( rld_greenhouse_2, intgroup = c( "cultivar", "condition"), col=cols ) )
+
+pca_greenhouse_2 <- pca(t(assay(rld_greenhouse_2)), center=T, scale="none", nPcs=5)
+pca_greenhouse_2@R2
+pairs(pca_greenhouse_2@scores, col=dds_greenhouse_2$condition, pch=19)
+pairs(pca_greenhouse_2@scores, col=dds_greenhouse_2$cultivar, pch=19)
+
+pdf("../figures/pca_rld_greenhouse_2_samples.pdf")
+plot(pca_greenhouse_2@scores[,1], pca_greenhouse_2@scores[,4], 
+     pch=c(19,17)[dds_greenhouse_2$condition], 
+     col=dds_greenhouse_2$cultivar, cex=2, 
+     xlab="PC1 (30.5%)",
+     ylab="PC2 (11.4%)")
+legend("bottomright", fill=1:4, legend=levels(dds_greenhouse_2$cultivar), horiz=T)
+dev.off()
+
+topVarGenes_greenhouse_2 <- head( order( rowVars( assay(rld_greenhouse_2) ), decreasing=TRUE ), 35 )
+
+heatmap.2( assay(rld_greenhouse_2)[ topVarGenes_greenhouse_2, ], scale="row",
+           trace="none", dendrogram="column",
+           col = colorRampPalette( rev(brewer.pal(9, "RdBu")) )(255))
+```
+
+
+```{r}
+counts_keep[1,9:16]
+head(assays(dds_greenhouse)$counts)
+head(assays(dds_greenhouse)$mu)
+
+assays(dds_greenhouse_1)$mu[638,]
+```
+
+
+
+```{r MLSeq for Classification of Tolerance}
+# class: tolerance
+class <- samplelist_ordered$tolerance
+
+# input data: counts_keep
+data <- counts_keep[1:100,]
+dim(data)
+
+# sample test data
+nTest = ceiling(ncol(data)*0.25)  
+set.seed(12345) 
+ind = sample(ncol(data), nTest, FALSE)
+
+class[-ind]
+
+# train data and class
+data.train = data[,-ind]    
+data.train = as.matrix(data.train + 1)
+dim(data.train)
+classtr = data.frame(condition = class[-ind])
+
+# test data and class
+data.test = data[,ind]
+data.test = as.matrix(data.test + 1)
+classts = data.frame(condition = class[ind])
+
+dim(data.train)
+dim(data.test)
+
+# We can now transform our training and test data to DESeqDataSet instance
+data.trainS4 = DESeqDataSetFromMatrix(countData = data.train,
+                                      colData = classtr, formula(~condition))
+data.trainS4 = DESeq(data.trainS4, fitType="local")
+data.trainS4
+
+data.testS4 = DESeqDataSetFromMatrix(countData = data.test,
+                                     colData = classts, formula(~condition))
+data.testS4 = DESeq(data.testS4, fitType = "local") 
+data.testS4
+
+# SVM model (5-fold CV, 3 repetitions)
+svm = classify(data = data.trainS4, method = "svm", normalize = "deseq",
+               deseqTransform = "vst", cv = 5, rpt = 3, ref = "tolerant")
+svm
+
+getSlots("MLSeq")
+trained(svm)
+
+# randomForests
+rf = classify(data = data.trainS4, method = "randomforest", normalize = "deseq", 
+              deseqTransform = "vst", cv = 5, rpt = 3, ref = "tolerant")
+rf
+
+# predict class for test data by SVM or rf
+pred.svm = predictClassify(svm, data.testS4)
+pred.svm
+
+pred.rf = predictClassify(rf, data.testS4) 
+pred.rf
+
+table(pred.svm, relevel(data.testS4$condition, 2))
+table(pred.rf, relevel(data.testS4$condition, 2))
+```
+
+
+
+```{r}
+save.image("DESeq_Analysis.RData")
+```
+
