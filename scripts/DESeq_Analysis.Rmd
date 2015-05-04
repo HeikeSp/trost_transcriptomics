@@ -35,6 +35,13 @@ source("../libpurzel/colors.R")
 source("../libpurzel/func_pca_plots.R")
 ```
 
+### Load PGSC annotation file
+```{r load PGSC annotation}
+assoc_pgsc <- read.table("data/PGSC_DM_v3.4_g2t2c2p2func_edit.txt")
+colnames(assoc_pgsc) <- c("pgsc_dmg", "pgsc_dmt", "pgsc_dmc", "pgsc_dmp", "func")
+head(assoc_pgsc)
+```
+
 
 #### Load data
 ```{r load data}
@@ -53,12 +60,6 @@ samplelist_ordered$trial_name <- factor(samplelist_ordered$trial_name,
 
 samplelist_ordered_g <- subset(samplelist_ordered, cultivation=="greenhouse")
 samplelist_ordered_f <- subset(samplelist_ordered, cultivation=="field")
-
-
-# load PGSC IDs and annotations
-assoc_pgsc <- read.table("../../data/pgsc_data/PGSC_DM_v3.4_g2t2c2p2func_edit.txt")
-head(assoc_pgsc)
-colnames(assoc_pgsc) <- c("pgsc_dmg", "pgsc_dmt", "pgsc_dmc", "pgsc_dmp", "func")
 ```
 
 
