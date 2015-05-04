@@ -1,0 +1,47 @@
+---
+title: "Expected Count Data Analysis"
+author: "Heike Sprenger"
+date: "Monday, May 04, 2015"
+output: pdf_document
+---
+
+## Input: Expected counts table from rsem per gene
+
+### Set working directory  
+```{r set working directory}
+#getwd()
+#setwd("D:/work/repos/trost_transcriptomics")
+```
+
+[solution for issue with working directory and knitr](https://github.com/yihui/knitr/issues/277)
+
+### Load workspace, packages and scripts
+```{r load workspace}
+#load("exp_counts.RData")
+
+# load packages
+library(knitr)
+
+# set options for knitr
+opts_chunk$set(fig.width=5, fig.height=5)
+opts_knit$set(root.dir = 'D:/work/repos/trost_transcriptomics/')
+```
+
+
+### Load PGSC annotation file
+```{r load PGSC annotation file}
+assoc_pgsc <- read.table("data/PGSC_DM_v3.4_g2t2c2p2func_edit.txt")
+head(assoc_pgsc)
+colnames(assoc_pgsc) <- c("pgsc_dmg", "pgsc_dmt", "pgsc_dmc", "pgsc_dmp", "func")
+```
+
+
+### Load samplelist
+```{r load samplelist}
+samplelist <- read.table("data/samplelist.txt", header=TRUE, sep = "\t")
+
+# new ordering! (trial number, condition, cultivar)
+samplelist_ordered <- samplelist[with(samplelist, order(trial_number, condition, cultivar)),]
+head(samplelist_ordered)
+```
+
