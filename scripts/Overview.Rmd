@@ -111,7 +111,7 @@ levels(samplelist_ordered$cultivar_condition)
 levels(samplelist_ordered$cultivation_condition)
 
 # save modified samplelist
-write.table(samplelist_ordered, "output/samplelist_ordered2.txt", sep="\t")
+write.table(samplelist_ordered, "output/samplelist_modified.txt", sep="\t")
 ```
 
 
