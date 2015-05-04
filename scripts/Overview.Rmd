@@ -1,19 +1,27 @@
-Sequencing Data
+---
+title: "Overview of RNA-Seq Data"
+author: "Heike Sprenger"
+date: "Monday, May 04, 2015"
+output: html_document
+---
+
+Overview of RNA-Seq Data
 ========================================================
 
 ## Input: FPKM_genes table from rsem
 
 ### Set working directory
-```{r Set working directory}
+```{r set working directory}
 getwd()
 setwd("repos/trost_transcriptomics")
 ```
 
 
-### load workspace
+### Load workspace, packages and scripts
 ```{r load workspace}
-# load("fpkm.RData")
+load("fpkm.RData")
 
+# load packages
 library(pcaMethods)
 library(knitr)
 library(gplots)
@@ -22,11 +30,15 @@ library(corrplot)
 library(corrgram)
 library(VennDiagram)
 
+# source functions
 source("../libpurzel/colors.R")
+source("../libpurzel/func_pca_plots.R")
+source("../libpurzel/func_cor_mtest.R")
+source("../libpurzel/func_specific_genes.R")
 ```
 
 
-### load PGSC annotation file
+### Load PGSC annotation file
 ```{r load PGSC annotation}
 assoc_pgsc <- read.table("data/PGSC_DM_v3.4_g2t2c2p2func_edit.txt")
 head(assoc_pgsc)
@@ -34,7 +46,7 @@ colnames(assoc_pgsc) <- c("pgsc_dmg", "pgsc_dmt", "pgsc_dmc", "pgsc_dmp", "func"
 ```
 
 
-### load samplelist
+### Load samplelist
 ```{r load samplelist}
 samplelist <- read.table("data/samplelist.txt", header=TRUE, sep = "\t")
 
@@ -59,23 +71,32 @@ samplelist_field <- droplevels(samplelist_field)
 ```
 
 
-### modify samplelist
+### Modify samplelist
 ```{r modify samplelist}
+# interaction of two factors: cultivar x condition
 interaction(samplelist_ordered$cultivar, samplelist_ordered$condition)
+
+# interaction of two factors: cultivation x condition
 interaction(samplelist_ordered$cultivation, samplelist_ordered$condition)
 
 # define vector for trial information (cultivation type)
 trial <- c(rep("field_1",8), rep("greenhouse_1",8), rep("greenhouse_2",8), rep("greenhouse_3",8), rep("field_2",8), rep("field_3",8))  
 
+# combine samplelist with trial information and combined factors (interactions)
 samplelist_ordered <- cbind(samplelist_ordered, 
                             trial, 
                             interaction(samplelist_ordered$cultivar, samplelist_ordered$condition), 
                             interaction(samplelist_ordered$cultivation, samplelist_ordered$condition))
 
-colnames(samplelist_ordered) <- c("sample_number", "sample_name", "trial_number", "trial_name", "cultivation", "cultivar", "condition", "tolerance","libsize_raw", "libsize_mapped", "trial", "cultivar_condition","cultivation_condition")
+# change colnames of samplelist
+colnames(samplelist_ordered) <- c("sample_number", "sample_name", "trial_number", "trial_name", 
+                                  "cultivation", "cultivar", "condition", "tolerance",
+                                  "libsize_raw", "libsize_mapped", "trial", 
+                                  "cultivar_condition","cultivation_condition")
 
 head(samplelist_ordered)
 
+# convert trial information into factor
 samplelist_ordered$trial <- as.factor(samplelist_ordered$trial)
 class(samplelist_ordered$trial)
 levels(samplelist_ordered$trial)
@@ -89,22 +110,28 @@ samplelist_ordered$trial_name <- factor(samplelist_ordered$trial_name,
 levels(samplelist_ordered$cultivar_condition)
 levels(samplelist_ordered$cultivation_condition)
 
-write.table(samplelist_ordered, "../output/samplelist_ordered2.txt", sep="\t")
+# save modified samplelist
+write.table(samplelist_ordered, "output/samplelist_ordered2.txt", sep="\t")
 ```
 
 
-### load expected counts data (per gene)
+### Load expected counts data (per gene)
 ```{r load expected counts data}
-exp_counts_genes <- read.table("../data/genes_expCounts.tsv", header = TRUE, sep = "\t", row.names = 1)
+exp_counts_genes <- read.table("data/genes_expCounts.tsv", header = TRUE, sep = "\t", row.names = 1)
+
+dim(exp_counts_genes)
+class(exp_counts_genes)
+colnames(exp_counts_genes)
+head(rownames(exp_counts_genes))
+hist(log(exp_counts_genes[,1]), breaks=100)
 ```
 
 
-### load FPKM data (per gene)
+### Load FPKM data (per gene)
 ```{r load FPKM data}
-  
 #fpkm <- read.table("FPKM_table_edit.txt", header = TRUE, sep = "\t", row.names = 1)
 
-fpkm_genes <- read.table("../data/genes_FPKMs.txt", header = TRUE, sep = "\t", row.names = 1)
+fpkm_genes <- read.table("data/genes_FPKMs.txt", header = TRUE, sep = "\t", row.names = 1)
 
 dim(fpkm_genes)
 class(fpkm_genes)
@@ -116,7 +143,7 @@ hist(log(fpkm_genes[,1]), breaks=100)
 
 ### Remove genes with zero counts over all samples
 ```{r remove genes with no counts}
-fpkm_row_mean <- apply(fpkm_genes, 1, mean) # calculate row mean
+fpkm_row_mean <- apply(fpkm_genes, 1, mean) # calculate row mean (per gene)
 fpkm_row_max <- apply(fpkm_genes, 1, max) # calculate row max
 fpkm_row_sums <- apply(fpkm_genes, 1, sum) # calculate row sums
 fpkm_row_var <- apply(fpkm_genes, 1, var) # calculate row sums
@@ -136,13 +163,13 @@ fpkm_genes_filtered <- fpkm_genes[-which(fpkm_row_max < 1),] # remove rows where
 dim(fpkm_genes_filtered)
 # 26277 48
 
-write.table(fpkm_genes_filtered, "../output/fpkm_genes_filtered.txt", sep="\t")
+write.table(fpkm_genes_filtered, "output/fpkm_genes_filtered.txt", sep="\t")
 ```
 
 **There are 5334 genes that show 0 as FPKM value for all samples.**
 
 
-### transpose for PCA
+### Transpose for PCA
 ```{r transpose data for PCA}
 fpkm_genes_pca <- t(fpkm_genes_filtered[,1:48])
 dim(fpkm_genes_pca)
@@ -163,7 +190,6 @@ genes_rnipals_res@R2
 
 ### PCA plots
 ```{r PCA plots}
-source("../functions/func_pca_plots.R")
 
 pdf("../figures/pca_plot_all_samples.pdf")
 par(mar=c(4.5, 4.5, 1.5, 0.5))
@@ -189,19 +215,25 @@ plot(genes_ppca_res@scores[,1], genes_ppca_res@scores[,2], bg=samplelist_ordered
      cex=2, pch=21, xlab="PC1 (67.2%)", ylab="PC2 (10.4%)", cex.lab=1.5, cex.axis=1.2, col="black")
 
 dev.off()
+```
 
-# for phd-thesis
-pdf("../../../../Doktorarbeit/figures/rna_pca_all.pdf", width=6, height=6)
+### PCA plot for PhD thesis
+```{r PCA plot for PhD thesis}
+#pdf("../../../../Doktorarbeit/figures/rna_pca_all.pdf", width=6, height=6)
 par(mar=c(4.5, 4.5, 1.5, 0.5))
 func_pca_plot(genes_ppca_res, 1, 2, factors = samplelist_ordered, color_factor = "trial_name", 
               pos1="bottomleft", leg1=1.2, symbol_size=2,
               legend.text=c("JKI GH1", "MPI-MP GH1", "MPI-MP GH2", 
                             "JKI field 2012", "MPI-MP field 2011", "MPI-MP field 2012"))
-dev.off()
+#dev.off()
 ```
 
 
-### replace zero or low values by NA
+**Observation: PCA of fpkm values without further transformation is not suitable**
+**Conclusion: Use rld for PCA!**
+
+
+### Replace zero or low values by NA
 ```{r replace zero by NA}
 dim(fpkm_genes_filtered)
 fpkm_genes_filtered_mod1 <- fpkm_genes_filtered
@@ -356,7 +388,6 @@ genes_ppca_greenhouse_log2_res@R2
 
 ### PCA plots greenhouse
 ```{r PCA plots greenhouse}
-source("../functions/func_pca_plots.R")
 
 pdf("../figures/pca_plot_greenhouse.pdf")
 par(mar=c(4.5, 4.5, 1.5, 0.5))
@@ -412,7 +443,6 @@ dev.off()
 
 ### PCA plots greenhouse log2 values
 ```{r PCA plots greenhouse log2 values}
-source("../functions/func_pca_plots.R")
 
 pdf("../figures/pca_plot_greenhouse_log2.pdf")
 par(mar=c(4.5, 4.5, 1.5, 0.5))
@@ -456,7 +486,6 @@ dev.off()
 
 ### PCA plots field
 ```{r PCA plots field}
-source("../functions/func_pca_plots.R")
 
 pdf("../figures/pca_plot_field.pdf")
 par(mar=c(4.5, 4.5, 1.5, 0.5))
@@ -524,7 +553,6 @@ dev.off()
 
 ### PCA plots field log2 values
 ```{r PCA plots field log2 values}
-source("../functions/func_pca_plots.R")
 
 pdf("../figures/pca_plot_field_log2.pdf")
 par(mar=c(4.5, 4.5, 1.5, 0.5))
@@ -636,8 +664,6 @@ dev.off()
 
 corrgram(res_corr$r, order=TRUE, lower.panel=panel.shade, upper.panel=NULL, text.panel=panel.txt)
 
-
-source("../functions/func_cor_mtest.R")
 
 dim(fpkm_genes_log2_t)
 res_corr_mtest <- func_cor_mtest(fpkm_genes_log2_t, 0.95)
@@ -902,7 +928,7 @@ boxplot(as.numeric(fpkm_all_greenhouse["PGSC0003DMG400003530",]), as.numeric(fpk
 
 
 
-source("../functions/func_specific_genes.R")
+
 fpkm_fc_greenhouse <- func_specific_genes_cultivation(fpkm_data = fpkm_all,
                                                       samplelist_name = samplelist_ordered,
                                                       cultivation_name = "greenhouse", threshold = 2)
@@ -918,7 +944,7 @@ fpkm_fc_field <- func_specific_genes_cultivation(fpkm_data = fpkm_all,
 
 
 ```{r specifically expressed genes Alegria}
-source("../functions/func_specific_genes.R")
+
 fpkm_fc_greenhouse_alegria <- func_specific_genes_cultivar(fpkm_data = fpkm_all_greenhouse,
                              samplelist_name = samplelist_greenhouse,
                              cultivar_name = "Alegria", threshold = 2)
@@ -961,7 +987,7 @@ func_specific_genes_cultivar_boxplot(fpkm_data = fpkm_all,
 
 
 ```{r specifically expressed genes Milva}
-source("../functions/func_specific_genes.R")
+
 fpkm_fc_greenhouse_milva <- func_specific_genes_cultivar(fpkm_data = fpkm_all_greenhouse,
                              samplelist_name = samplelist_greenhouse,
                              cultivar_name = "Milva")
@@ -990,7 +1016,7 @@ func_specific_genes_cultivar_boxplot(fpkm_data = fpkm_all,
 ```
 
 ```{r specifically expressed genes Desiree}
-source("../functions/func_specific_genes.R")
+
 fpkm_fc_greenhouse_desiree <- func_specific_genes_cultivar(fpkm_data = fpkm_all_greenhouse,
                              samplelist_name = samplelist_greenhouse,
                              cultivar_name = "Desiree")
@@ -1019,7 +1045,7 @@ func_specific_genes_cultivar_boxplot(fpkm_data = fpkm_all,
 ```
 
 ```{r specifically expressed genes Saturna}
-source("../functions/func_specific_genes.R")
+
 fpkm_fc_greenhouse_saturna <- func_specific_genes_cultivar(fpkm_data = fpkm_all_greenhouse,
                              samplelist_name = samplelist_greenhouse,
                              cultivar_name = "Saturna")
@@ -1049,7 +1075,7 @@ func_specific_genes_cultivar_boxplot(fpkm_data = fpkm_all,
 
 
 ```{r specifically expressed genes tolerant cultivars}
-source("../functions/func_specific_genes.R")
+
 fpkm_fc_greenhouse_tolerant <- func_specific_genes_tolerance(fpkm_data = fpkm_all_greenhouse,
                                                              samplelist_name = samplelist_greenhouse,
                                                              tolerance_group = "tolerant")
@@ -1082,7 +1108,7 @@ func_specific_genes_tolerance_boxplot(fpkm_data = fpkm_all,
 ```
 
 ```{r specifically expressed genes sensitive cultivars}
-source("../functions/func_specific_genes.R")
+
 fpkm_fc_greenhouse_sensitive <- func_specific_genes_tolerance(fpkm_data = fpkm_all_greenhouse,
                                                              samplelist_name = samplelist_greenhouse,
                                                              tolerance_group = "sensitive")
@@ -1104,7 +1130,7 @@ fpkm_fc_all_sensitive <- func_specific_genes_tolerance(fpkm_data = fpkm_all,
 
 
 ```{r specifically expressed genes control samples}
-source("../functions/func_specific_genes.R")
+
 fpkm_fc_greenhouse_control <- func_specific_genes_condition(fpkm_data = fpkm_all_greenhouse,
                                                              samplelist_name = samplelist_greenhouse,
                                                              condition_name = "control")
@@ -1125,7 +1151,7 @@ fpkm_fc_all_control <- func_specific_genes_condition(fpkm_data = fpkm_all,
 ```
 
 ```{r specifically expressed genes drought samples}
-source("../functions/func_specific_genes.R")
+
 fpkm_fc_greenhouse_drought <- func_specific_genes_condition(fpkm_data = fpkm_all_greenhouse,
                                                              samplelist_name = samplelist_greenhouse,
                                                              condition_name = "drought stress")
@@ -1172,8 +1198,8 @@ dev.off()
 ```
 
 
-
-```{r}
+### save workspace
+```{r save workspace}
 save.image("fpkm.RData")
 ```
 

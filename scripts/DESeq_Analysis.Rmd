@@ -8,7 +8,7 @@ output: html_document
 DESeq Analysis
 ========================================================
 
-## Input: Expected counts that are filtered**
+## Input: Expected counts that are filtered
 
 ### Set working directory
 ```{r set working directory}
@@ -33,13 +33,12 @@ library(MLSeq)
 # source functions
 source("../libpurzel/colors.R")
 source("../libpurzel/func_pca_plots.R")
-
 ```
 
 
 #### Load data
 ```{r load data}
-counts_keep <- read.table("../output/counts_keep.txt", sep="\t", header=T)
+counts_keep <- read.table("output/counts_keep.txt", sep="\t", header=T)
 samplelist_ordered <- read.table("../output/samplelist_ordered2.txt", sep="\t", header=T)
 head(samplelist_ordered)
 
