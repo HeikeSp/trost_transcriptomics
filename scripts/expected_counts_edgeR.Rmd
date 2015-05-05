@@ -1,0 +1,162 @@
+---
+title: "Expected Counts Data Analyis - edgeR"
+author: "Heike Sprenger"
+date: "Tuesday, May 05, 2015"
+output: html_document
+---
+
+## Input: Expected counts per gene (from RSEM)
+
+### Set working directory  
+```{r set working directory}
+#getwd()
+#setwd("D:/work/repos/trost_transcriptomics")
+```
+
+[solution for issue with working directory and knitr](https://github.com/yihui/knitr/issues/277)
+
+### Load workspace, packages and scripts
+```{r load workspace}
+# load packages
+library(knitr)
+library(pcaMethods)
+library(edgeR)
+library(VennDiagram)
+library(gplots)
+library(RColorBrewer)
+library(plyr)
+library(reshape2)
+library(pander)
+
+# set options for knitr
+opts_chunk$set(fig.width=5, fig.height=5, cache=FALSE, highlight = TRUE, fig.show="asis")
+opts_knit$set(root.dir = 'D:/work/repos/trost_transcriptomics/')
+
+# load workspace
+#load("exp_counts_edgeR.RData")
+```
+
+
+### Samplelist processing
+```{r child = 'Modify_RNASeq_Samplelist.Rmd'}
+# knit('scripts/Modify_RNASeq_Samplelist.Rmd')
+```
+
+
+### Source edgeR procedure function
+```{r source edgeR procedure function}
+source("../libpurzel/func_edgeR_dge.R")
+```
+
+
+### Load filtered expected conunts
+```{r load filtered expected conunts}
+counts_keep <- read.table("output/counts_keep.txt", sep="\t", header=T)
+
+# rownames of filtered expected counts (DMG identifier)
+#rownames_intersect_greenhouse_field <- rownames(counts_keep)
+#length(rownames_intersect_greenhouse_field)
+
+# greenhouse
+counts_keep_greenhouse <- counts_keep[,which(samplelist_ordered$cultivation=="greenhouse")]
+
+# field
+counts_keep_field <- counts_keep[,which(samplelist_ordered$cultivation=="field")]
+```
+
+
+### Load annotation files
+```{r load annotation files}
+assoc_pgsc <- read.table("data/PGSC_DM_v3.4_g2t2c2p2func_edit.txt")
+colnames(assoc_pgsc) <- c("pgsc_dmg", "pgsc_dmt", "pgsc_dmc", "pgsc_dmp", "func")
+pander(head(assoc_pgsc))
+
+assoc_pgsc_dmg <- unique(assoc_pgsc[,c(1,5)])
+
+assoc_mapman <- read.table("data/mapman_cleaned_output_new.txt", header = T)
+dim(assoc_mapman)
+colnames(assoc_mapman)
+
+# merge PGSC annotation table with MapMan table
+merge_mapman_pgsc <- merge(assoc_pgsc, assoc_mapman, by.x = "pgsc_dmp", by.y = "IDENTIFIER")
+colnames(merge_mapman_pgsc)
+dim(merge_mapman_pgsc)
+write.table(merge_mapman_pgsc, "data/merge_mapman_pgsc.txt", sep="\t")
+
+
+head(table(merge_mapman_pgsc$BINCODE))
+
+# unique MapMan classifications per gene
+merge_mapman_pgsc_dmg <- unique(merge_mapman_pgsc[,c(2,5:7)])
+head(merge_mapman_pgsc_dmg)
+```
+
+
+### Melt MapMan table
+```{r melt mapman table}
+# melt
+melt_mapman_pgsc <- melt(merge_mapman_pgsc, id=c("BINCODE")) 
+head(melt_mapman_pgsc)
+
+# cast
+cast_mapman_pgsc <- dcast(merge_mapman_pgsc, merge_mapman_pgsc$NAME ~ merge_mapman_pgsc$pgsc_dmp) 
+dim(cast_mapman_pgsc)
+
+# generate count table
+merge_mapman_pgsc_table <- as.data.frame(table(merge_mapman_pgsc$BINCODE)) # generate count table per bincode
+merge_mapman_pgsc_table2 <- as.data.frame(table(merge_mapman_pgsc$NAME)) # generate count table per name
+
+head(merge_mapman_pgsc_table)
+head(merge_mapman_pgsc_table2)
+dim(merge_mapman_pgsc_table)
+dim(merge_mapman_pgsc_table2)
+
+nrow(merge_mapman_pgsc_table2) - length(which(merge_mapman_pgsc_table2$Freq==0))
+nrow(merge_mapman_pgsc_table) - length(which(merge_mapman_pgsc_table$Freq==0))
+
+# only mapman bins with more than 1 count
+merge_mapman_pgsc_table_unique <- merge_mapman_pgsc_table[which(merge_mapman_pgsc_table$Freq!=0),]
+dim(merge_mapman_pgsc_table_unique)
+
+# frequency of mapman bins 
+hist(log10(merge_mapman_pgsc_table_unique$Freq), breaks=100, col="grey", main="")
+axis(side=3, at=c(0,0.698,1,2,3,4), labels=c(1,5,10,100,1000,10000))
+abline(v=c(0,0.698,1,2,3,4))
+
+merge_mapman_pgsc_unique_bincode <- unique(merge_mapman_pgsc$BINCODE)
+merge_mapman_pgsc_unique_name <- unique(merge_mapman_pgsc$NAME)
+head(merge_mapman_pgsc_unique_name)
+```
+
+
+### GREENHOUSE: Control vs. Drought Stress
+#### Execute edgeR procedure to identify differentially expresses genes (DGE) comparing control and drought stress conditions for greenhouse samples
+\textbf{Use FDR < 0.05}
+```{r edgeR GREENHOUSE control vs. stress, echo=TRUE}
+# rownumbers of selected samples
+group_idx <- which(samplelist_modified[, "cultivation"]=="greenhouse")
+# contrasting group factor
+group_factor <- as.factor(subset(samplelist_modified, cultivation == "greenhouse")$condition)
+
+# results of edgeR analysis
+res_greenhouse <- func_edgeR_dge(counts_keep = counts_keep,
+                            group_idx = group_idx, 
+                            group_1 = group_factor,
+                            FDR_threshold = 0.05)
+#res_greenhouse$sums
+head(rownames(res_greenhouse$top_sig))
+
+# export significant/all results
+write.table(res_greenhouse$top_sig, "output/edgeR_res_greenhouse_top_sig.txt", sep="\t")
+write.table(res_greenhouse$top_all, "output/edgeR_res_greenhouse_top_all.txt", sep="\t")
+
+# merge signifcant results (DGE) with MapMan annotation
+res_greenhouse_sig_up_mapman <- merge(res_greenhouse$top_sig_up, merge_mapman_pgsc_dmg, by.x="row.names", by.y="pgsc_dmg")
+res_greenhouse_sig_down_mapman <- merge(res_greenhouse$top_sig_down, merge_mapman_pgsc_dmg, by.x="row.names", by.y="pgsc_dmg")
+
+# export significant results merged with MapMan annotation
+write.table(res_greenhouse_sig_up_mapman, "output/res_greenhouse_sig_up_mapman.txt", sep="\t", row.names=F, quote=F)
+write.table(res_greenhouse_sig_down_mapman, "output/res_greenhouse_sig_down_mapman.txt", sep="\t", row.names=F, quote=F)
+```
+
+
