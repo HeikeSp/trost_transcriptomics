@@ -16,7 +16,7 @@ output: html_document
 [solution for issue with working directory and knitr](https://github.com/yihui/knitr/issues/277)
 
 ### Load workspace, packages and scripts
-```{r load workspace}
+```{r load workspace, message=FALSE}
 # load packages
 library(knitr)
 library(pcaMethods)
@@ -27,6 +27,9 @@ library(RColorBrewer)
 library(plyr)
 library(reshape2)
 library(pander)
+
+# set options for pander
+panderOptions('table.split.table', 200)
 
 # set options for knitr
 opts_chunk$set(fig.width=5, fig.height=5, cache=FALSE, highlight = TRUE, fig.show="asis")
@@ -49,7 +52,7 @@ source("../libpurzel/func_edgeR_dge.R")
 ```
 
 
-### Load filtered expected conunts
+### Load filtered expected counts
 ```{r load filtered expected conunts}
 counts_keep <- read.table("output/counts_keep.txt", sep="\t", header=T)
 
@@ -88,7 +91,7 @@ head(table(merge_mapman_pgsc$BINCODE))
 
 # unique MapMan classifications per gene
 merge_mapman_pgsc_dmg <- unique(merge_mapman_pgsc[,c(2,5:7)])
-head(merge_mapman_pgsc_dmg)
+pander(head(merge_mapman_pgsc_dmg))
 ```
 
 
@@ -96,7 +99,7 @@ head(merge_mapman_pgsc_dmg)
 ```{r melt mapman table}
 # melt
 melt_mapman_pgsc <- melt(merge_mapman_pgsc, id=c("BINCODE")) 
-head(melt_mapman_pgsc)
+pander(head(melt_mapman_pgsc))
 
 # cast
 cast_mapman_pgsc <- dcast(merge_mapman_pgsc, merge_mapman_pgsc$NAME ~ merge_mapman_pgsc$pgsc_dmp) 
@@ -106,8 +109,8 @@ dim(cast_mapman_pgsc)
 merge_mapman_pgsc_table <- as.data.frame(table(merge_mapman_pgsc$BINCODE)) # generate count table per bincode
 merge_mapman_pgsc_table2 <- as.data.frame(table(merge_mapman_pgsc$NAME)) # generate count table per name
 
-head(merge_mapman_pgsc_table)
-head(merge_mapman_pgsc_table2)
+pander(head(merge_mapman_pgsc_table))
+pander(head(merge_mapman_pgsc_table2))
 dim(merge_mapman_pgsc_table)
 dim(merge_mapman_pgsc_table2)
 
@@ -128,7 +131,7 @@ merge_mapman_pgsc_unique_name <- unique(merge_mapman_pgsc$NAME)
 head(merge_mapman_pgsc_unique_name)
 ```
 
-
+## DGE analysis by edgeR
 ### GREENHOUSE: Control vs. Drought Stress
 #### Execute edgeR procedure to identify differentially expresses genes (DGE) comparing control and drought stress conditions for greenhouse samples
 \textbf{Use FDR < 0.05}
@@ -144,7 +147,6 @@ res_greenhouse <- func_edgeR_dge(counts_keep = counts_keep,
                             group_1 = group_factor,
                             FDR_threshold = 0.05)
 #res_greenhouse$sums
-head(rownames(res_greenhouse$top_sig))
 
 # export significant/all results
 write.table(res_greenhouse$top_sig, "output/edgeR_res_greenhouse_top_sig.txt", sep="\t")
@@ -159,4 +161,122 @@ write.table(res_greenhouse_sig_up_mapman, "output/res_greenhouse_sig_up_mapman.t
 write.table(res_greenhouse_sig_down_mapman, "output/res_greenhouse_sig_down_mapman.txt", sep="\t", row.names=F, quote=F)
 ```
 
+
+### FIELD: Control vs. Drought Stress
+```{r FIELD control vs. stress, echo=TRUE}
+group_idx <- which(samplelist_modified[, "cultivation"]=="field")
+group_factor <- as.factor(subset(samplelist_modified, cultivation == "field")$condition)
+#res_field <- func_edgeR_dge(group_idx, group_1 = group_factor)
+
+res_field <- func_edgeR_dge(counts_keep = counts_keep,
+                            group_idx = group_idx, 
+                            group_1 = group_factor,
+                            FDR_threshold = 0.05)
+#res_field$sums
+
+write.table(res_field$top_sig, "output/edgeR_res_field_top_sig.txt", sep="\t")
+write.table(res_field$top_all, "output/edgeR_res_field_top_all.txt", sep="\t")
+
+res_field_sig_up_mapman <- merge(res_field$top_sig_up, merge_mapman_pgsc_dmg, by.x="row.names", by.y="pgsc_dmg")
+res_field_sig_down_mapman <- merge(res_field$top_sig_down, merge_mapman_pgsc_dmg, by.x="row.names", by.y="pgsc_dmg")
+
+write.table(res_field_sig_up_mapman, "output/res_field_sig_up_mapman.txt", sep="\t", row.names=F, quote=F)
+write.table(res_field_sig_down_mapman, "output/res_field_sig_down_mapman.txt", sep="\t", row.names=F, quote=F)
+```
+
+
+### Venn Diagrams
+Venn diagram of differentially expressed genes for control vs. stress comparing all samples either from greenhouse or field
+```{r venn diagram greenhouse-field control vs. stress ALL}
+venn.plot <- venn.diagram(x = list(Greenhouse=rownames(res_greenhouse$top_sig),
+                                   Field=rownames(res_field$top_sig)), 
+            filename=NULL, col = "transparent", fill = c("yellow","green"), 
+            alpha = 0.50, label.col = "black", 
+            cex = 1.5, fontfamily = "sans", fontface = "bold", 
+            cat.col = "black" , cat.cex = 1.5, cat.dist = 0.15, cat.fontfamily = "sans", 
+            rotation.degree = 0, margin = 0.2, scaled=FALSE
+                          )
+#dev.off()
+grid.draw(venn.plot)
+```
+
+
+
+```{r venn diagram greenhouse-field control vs. stress DOWN}
+venn.plot <- venn.diagram(x = list(Greenhouse=rownames(res_greenhouse$top_sig_down),
+                                   Field=rownames(res_field$top_sig_down)), 
+            filename=NULL, col = "transparent", fill = c("yellow","green"), 
+            alpha = 0.50, label.col = "black", 
+            cex = 1.5, fontfamily = "sans", fontface = "bold", 
+            cat.col = "black" , cat.cex = 1.5, cat.dist = 0.15, cat.fontfamily = "sans", 
+            rotation.degree = 0, margin = 0.2, scaled=FALSE)
+#dev.off()
+grid.draw(venn.plot)
+```
+
+
+```{r intersection greenhouse-field control vs. stress DOWN}
+intersect_cultivation_condition_down <- intersect(rownames(res_field$top_sig_down), 
+                                                  rownames(res_greenhouse$top_sig_down))
+
+intersect_cultivation_condition_down_res <- cbind(res_field$top_sig_down[rownames(res_field$top_sig_down) %in% intersect_cultivation_condition_down,], res_greenhouse$top_sig_down[rownames(res_greenhouse$top_sig_down) %in% intersect_cultivation_condition_down,])
+
+colnames(intersect_cultivation_condition_down_res) <- c("logFC_field","logCPM_field","PValue_field","FDR_field",
+                                                        "logFC_gh","logCPM_gh","PValue_gh","FDR_gh")
+
+intersect_cultivation_condition_down_res$logFC_mean <- apply(cbind(intersect_cultivation_condition_down_res$logFC_field,
+                                                                   intersect_cultivation_condition_down_res$logFC_gh),1,mean)
+intersect_cultivation_condition_down_res$logFC_sum <- apply(cbind(intersect_cultivation_condition_down_res$logFC_field,
+                                                                  intersect_cultivation_condition_down_res$logFC_gh),1,sum)
+
+intersect_cultivation_condition_down_res <- merge(intersect_cultivation_condition_down_res, 
+                                                  merge_mapman_pgsc_dmg, by.x="row.names", by.y="pgsc_dmg")
+
+intersect_cultivation_condition_down_res <- intersect_cultivation_condition_down_res[order(intersect_cultivation_condition_down_res$logFC_sum),]
+
+pander(head(intersect_cultivation_condition_down_res[,c(1,2,6,10:13)], n=25))
+
+write.table(intersect_cultivation_condition_down_res, "output/intersect_cultivation_condition_down_res.txt", 
+            sep="\t", row.names=F, quote=F)
+```
+
+
+
+```{r venn diagram greenhouse-field control vs. stress UP}
+venn.plot <- venn.diagram(x = list(Greenhouse=rownames(res_greenhouse$top_sig_up),
+                                   Field=rownames(res_field$top_sig_up)), 
+            filename=NULL, col = "transparent", fill = c("yellow","green"), 
+            alpha = 0.50, label.col = "black", 
+            cex = 1.5, fontfamily = "sans", fontface = "bold", 
+            cat.col = "black" , cat.cex = 1.5, cat.dist = 0.15, cat.fontfamily = "sans", 
+            rotation.degree = 0, margin = 0.2, scaled=FALSE
+                          )
+#dev.off()
+grid.draw(venn.plot)
+```
+
+
+```{r intersection greenhouse-field control vs. stress UP}
+intersect_cultivation_condition_up <- intersect(rownames(res_field$top_sig_up), 
+                                                rownames(res_greenhouse$top_sig_up))
+
+intersect_cultivation_condition_up_res <- cbind(res_field$top_sig_up[rownames(res_field$top_sig_up) %in% intersect_cultivation_condition_up,], res_greenhouse$top_sig_up[rownames(res_greenhouse$top_sig_up) %in% intersect_cultivation_condition_up,])
+
+colnames(intersect_cultivation_condition_up_res) <- c("logFC_field","logCPM_field","PValue_field","FDR_field",
+                                                        "logFC_gh","logCPM_gh","PValue_gh","FDR_gh")
+intersect_cultivation_condition_up_res$logFC_mean <- apply(cbind(intersect_cultivation_condition_up_res$logFC_field,intersect_cultivation_condition_up_res$logFC_gh),1,mean)
+intersect_cultivation_condition_up_res$logFC_sum <- apply(cbind(intersect_cultivation_condition_up_res$logFC_field,intersect_cultivation_condition_up_res$logFC_gh),1,sum)
+
+intersect_cultivation_condition_up_res <- merge(intersect_cultivation_condition_up_res, merge_mapman_pgsc_dmg, by.x="row.names", by.y="pgsc_dmg")
+
+intersect_cultivation_condition_up_res <- intersect_cultivation_condition_up_res[order(intersect_cultivation_condition_up_res$logFC_sum, decreasing=T),]
+
+pander(head(intersect_cultivation_condition_up_res[,c(1,2,6,10:13)], n=20))
+write.table(intersect_cultivation_condition_up_res, "output/intersect_cultivation_condition_up_res.txt", sep="\t", row.names=F, quote=F)
+```
+
+## save workspace
+```{r save workspace}
+save.image("exp_counts_edgeR.RData")
+```
 
