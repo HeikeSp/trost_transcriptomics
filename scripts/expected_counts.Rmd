@@ -17,18 +17,20 @@ output: html_document
 
 ### Load workspace, packages and scripts
 ```{r load workspace}
-#load("exp_counts.RData")
-
 # load packages
 library(knitr)
+library(VennDiagram)
 
 # set options for knitr
 opts_chunk$set(fig.width=5, fig.height=5)
 opts_knit$set(root.dir = 'D:/work/repos/trost_transcriptomics/')
+
+# load workspace
+#load("exp_counts.RData")
 ```
 
 
-### Load PGSC annotation file
+## Load PGSC annotation file
 ```{r load PGSC annotation file}
 assoc_pgsc <- read.table("data/PGSC_DM_v3.4_g2t2c2p2func_edit.txt")
 colnames(assoc_pgsc) <- c("pgsc_dmg", "pgsc_dmt", "pgsc_dmc", "pgsc_dmp", "func")
@@ -36,7 +38,7 @@ head(assoc_pgsc)
 ```
 
 
-### Samplelist processing
+## Samplelist processing
 ```{r child = 'Modify_RNASeq_Samplelist.Rmd'}
 ```
 
@@ -158,8 +160,224 @@ length(which(exp_counts_genes_rounded_mean >= 1))
 ```
 
 
+### Filtering of complete exp counts table
+```{r filtering of complete exp counts table}
+# use only genes with mean != 0 (36887 genes)
+exp_counts_genes_rounded_part <- exp_counts_genes_rounded [which (exp_counts_genes_rounded_mean != 0) , ]
+dim(exp_counts_genes_rounded_part)
+
+# calculate the mean of the rows (per gene over all samples), BUT only genes with mean != 0
+exp_counts_genes_rounded_part_mean <- apply(exp_counts_genes_rounded_part, 1, mean) 
+
+# histogram of log10-transformed means per gene
+hist(log10(exp_counts_genes_rounded_part_mean), breaks=25)
+
+# summary of means per gene, BUT Only genes with mean != 0
+summary(exp_counts_genes_rounded_part_mean)
+
+# filtering threshold: 0.73 is the 1st Qu. of means per gene
+
+length(which(exp_counts_genes_rounded_part_mean >= 0.73))
+# 27608 genes of part of dataset have mean >= 0.73 
+length(which(exp_counts_genes_rounded_part_mean < 0.73))
+# 9279 genes of part of dataset have mean < 0.73
+
+# histogram of log10-transformed means per gene, BUT only genes with mean >= 0.73
+hist(log10(exp_counts_genes_rounded_part_mean[which(exp_counts_genes_rounded_part_mean >= 0.73)]), breaks=25)
+```
 
 
+### Summary of sums of ROUNDED expected counts
+```{r summary of sums of ROUNDED expected counts}
+#############
+# calculate the sum of the rows (per gene over all samples)
+exp_counts_genes_rounded_sum <- apply(exp_counts_genes_rounded, 1, sum) 
+#############
 
+# calculate sum, only genes with mean != 0
+exp_counts_genes_rounded_part_sum <- apply(exp_counts_genes_rounded_part, 1, sum)
+
+# summary of sum per gene
+summary(exp_counts_genes_rounded_part_sum)
+
+length(which(exp_counts_genes_rounded_part_sum < 35))
+# 9196 of 36887 genes of part of dataset have sum < 35 (which is 1st Qu.)
+
+length(which(exp_counts_genes_rounded_sum == 0))
+# 6147 of 43034 genes have no read in any sample (AFTER rounding, complete dataset)
+
+
+#############
+# calculate the sum of the rows (per gene over all samples) for dataset BEFORE ROUNDING
+exp_counts_genes_sum <- apply(exp_counts_genes, 1, sum) 
+length(which(exp_counts_genes_sum == 0))
+# 5333 of 43034 genes have no read in any sample (BEFORE rounding, complete dataset)
+#############
+```
+
+### Filtering for GREENHOUSE counts
+```{r filtering for GREENHOUSE counts}
+# calculate the mean per row (per gene over all greenhouse samples)
+counts_greenhouse_mean <- apply(counts_greenhouse, 1, mean)
+
+# summary of means per gene
+summary(counts_greenhouse_mean)
+
+length(which(counts_greenhouse_mean == 0))
+# 7790 genes have mean of zero (looking at 24 greenhouse samples)
+
+length(which(counts_greenhouse_mean != 0))
+# 35244 genes have mean unequal to zero (looking at 24 greenhouse samples)
+
+# use only genes with mean != 0 (looking at 24 greenhouse samples)
+counts_greenhouse_part <- counts_greenhouse[which(counts_greenhouse_mean != 0),]
+dim(counts_greenhouse_part)
+
+# calculate the mean of the rows (per gene over all greenhouse samples), BUT only genes with mean != 0
+counts_greenhouse_part_mean <- apply(counts_greenhouse_part, 1, mean)
+
+# summary of means per gene, BUT Only genes with mean != 0
+summary(counts_greenhouse_part_mean)
+# filtering threshold: 1.04 is the 1st Qu. of means per gene
+summary(counts_greenhouse_part_mean)[2]
+
+length(which(counts_greenhouse_part_mean >= 1.04))
+# 26444 genes of part of greenhouse dataset have mean >= 1.04
+length(which(counts_greenhouse_part_mean < 1.04))
+# 8800 genes of part of greenhouse dataset have mean < 1.04
+
+# calculate the sum of the rows (per gene over all greenhouse samples), BUT only genes with mean != 0
+counts_greenhouse_part_sum <- apply(counts_greenhouse_part, 1, sum)
+summary(counts_greenhouse_part_sum)
+summary(counts_greenhouse_part_sum)[2]
+
+length(which(counts_greenhouse_part_sum < 25))
+# 8800 genes of part of greenhouse dataset have sum < 25
+
+length(intersect(which(counts_greenhouse_part_sum < 25), which(counts_greenhouse_part_mean < 1.04)))
+# 8800 --> all!
+```
+
+
+### Filtering for FIELD counts
+```{r filtering for FIELD counts}
+# calculate the mean per row (per gene over all field samples)
+counts_field_mean <- apply(counts_field, 1, mean)
+
+# summary of means per gene
+summary(counts_field_mean)
+
+length(which(counts_field_mean == 0))
+# 7591 genes have mean of zero (looking at 24 field samples)
+
+length(which(counts_field_mean != 0))
+# 35443 genes have mean unequal to zero (looking at 24 field samples)
+
+# use only genes with mean != 0 (looking at 24 field samples)
+counts_field_part <- counts_field[which(counts_field_mean != 0),]
+dim(counts_field_part)
+
+# calculate the mean of the rows (per gene over all field samples), BUT only genes with mean != 0
+counts_field_part_mean <- apply(counts_field_part, 1, mean) 
+
+# summary of means per gene, BUT Only genes with mean != 0
+summary(counts_field_part_mean)
+# filtering threshold: 1.125 is the 1st Qu. of means per gene
+summary(counts_field_part_mean)[2]
+
+length(which(counts_field_part_mean >= 1.125))
+# 26644 genes of part of field dataset have mean >= 1.125
+length(which(counts_field_part_mean < 1.125))
+# 8799 genes of part of field dataset have mean < 1.125
+
+# calculate the sum of the rows (per gene over all field samples), BUT only genes with mean != 0
+counts_field_part_sum <- apply(counts_field_part, 1, sum)
+summary(counts_field_part_sum)
+summary(counts_field_part_sum)[2]
+
+length(which(counts_field_part_sum < 27))
+# 8799 genes of part of dataset have sum < 25
+
+length(intersect(which(counts_field_part_sum < 27), which(counts_field_part_mean < 1.12)))
+# 8799 --> all!
+```
+
+
+### Intersection of filtered genes between greenhouse and field
+```{r intersection of filtered genes between greenhouse and field}
+# save rownames of genes with mean greater than threshold for greenhouse dataset (filtered)
+rownames_filtered_greenhouse <- rownames(counts_greenhouse_part)[which(counts_greenhouse_part_mean >= 1.04)]
+head(rownames_filtered_greenhouse)
+
+# save rownames of genes with mean greater than threshold for greenhouse dataset (filtered)
+rownames_filtered_field <- rownames(counts_field_part)[which(counts_field_part_mean >= 1.125)]
+head(rownames_filtered_field)
+
+# intersection of rownames between filtered field and greenhouse dataset
+rownames_intersect_greenhouse_field <- intersect(rownames_filtered_field, rownames_filtered_greenhouse)
+length(rownames_intersect_greenhouse_field)
+# 25846 genes that fulfill criteria in field and greenhouse dataset
+head(rownames_intersect_greenhouse_field)
+
+# unique for field
+length(setdiff(rownames_filtered_field, rownames_filtered_greenhouse))
+
+# unique for greenhouse
+length(setdiff(rownames_filtered_greenhouse, rownames_filtered_field))
+```
+
+
+### Venn Diagram
+```{r venn diagram, tidy=TRUE}
+venn.plot <- venn.diagram(x = list(Field=rownames_filtered_field, Greenhouse=rownames_filtered_greenhouse), 
+             filename=NULL, col = "transparent", fill = c("yellow","green"), 
+             alpha = 0.50, label.col = c("orange", "black", "darkgreen"), 
+             cex = 1.5, fontfamily = "serif", fontface = "bold", 
+             cat.col = c("orange", "darkgreen"), cat.cex = 1.5, cat.dist = 0.07, cat.fontfamily = "serif", 
+             rotation.degree = 0, margin = 0.2, scaled=FALSE)
+
+#dev.off()
+grid.draw(venn.plot)
+```
+
+
+### Save filtered dataset for expected counts (after intersection)
+```{r save filtered dataset for expected counts}
+# save only rounded exp counts that fulfill criteria in field and greenhouse dataset
+counts_keep <- exp_counts_genes_rounded[which( rownames(exp_counts_genes) %in% rownames_intersect_greenhouse_field) , ]
+dim(counts_keep)
+
+# calculate mean for filtered dataset
+counts_keep_mean <- apply(counts_keep, 1, mean)
+summary(counts_keep_mean)
+
+hist(log10(counts_keep_mean), main = "Mean of filtered counts", breaks=50)
+
+# calculate sum for filtered dataset
+counts_keep_sum <- apply(counts_keep, 1, sum)
+summary(counts_keep_sum)
+
+hist(log10(counts_keep_sum), main = "Sum of filtered counts", breaks=50)
+
+# calculate variance for filtered dataset (per gene)
+counts_keep_var <- apply(counts_keep, 1, var)
+
+# calculate log2 of mean and variance (per gene)
+counts_keep_var_log2 <- apply(log2(counts_keep), 1, var)
+counts_keep_mean_log2 <- apply(log2(counts_keep), 1, mean)
+
+# plot mean vs. variance
+plot(log2(counts_keep_mean), log2(counts_keep_var))
+plot(counts_keep_mean_log2, counts_keep_var_log2)
+
+# export rounded exp counts that fulfill criteria in field and greenhouse dataset
+write.table(counts_keep, "output/counts_keep.txt", sep="\t")
+```
+
+
+### Save workspace
+```{r save workspace}
+save.image("exp_counts.RData")
+```
 
 
