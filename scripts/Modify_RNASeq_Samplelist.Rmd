@@ -9,6 +9,8 @@ output: html_document
 ```{r knitr options}
 
 library(knitr)
+library(pander)
+panderOptions('table.split.table', 200)
 
 # set options for knitr
 opts_knit$set(root.dir = 'D:/work/repos/trost_transcriptomics/')
@@ -23,7 +25,7 @@ samplelist <- read.table("data/samplelist.txt", header=TRUE, sep = "\t")
 ```{r order samplelist, echo=TRUE}
 # new ordering! (trial number, condition, cultivar)
 samplelist_ordered <- samplelist[with(samplelist, order(trial_number, condition, cultivar)),]
-print(head(samplelist_ordered))
+pander(head(samplelist_ordered))
 ```
 
 ### Rename and relevel samplelist
@@ -76,7 +78,7 @@ colnames(samplelist_modified) <- c("sample_number", "sample_name", "trial_number
                                   "cultivar_condition","cultivation_condition", "tolerance_condition", 
                                   "cultivation_cultivar", "cultivation_tolerance", "trial_name_cultivar")
 
-print(head(samplelist_modified))
+pander(head(samplelist_modified))
 ```
 
 ### Convert trial information into factor
