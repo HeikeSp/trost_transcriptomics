@@ -46,9 +46,12 @@ opts_knit$set(root.dir = 'D:/work/repos/trost_transcriptomics/')
 ```
 
 
-### Source edgeR procedure function
-```{r source edgeR procedure function}
+### Source R functions
+```{r source R functions}
+source("../libpurzel/func_venn_diagram.R")
 source("../libpurzel/func_edgeR_dge.R")
+source("../libpurzel/func_pageman_res.R")
+source("../libpurzel/func_merge_sig_res_mapman.R")
 ```
 
 
@@ -163,7 +166,7 @@ write.table(res_greenhouse_sig_down_mapman, "output/res_greenhouse_sig_down_mapm
 
 
 ### FIELD: Control vs. Drought Stress
-```{r FIELD control vs. stress, echo=TRUE}
+```{r edgeR FIELD control vs. stress, echo=TRUE}
 group_idx <- which(samplelist_modified[, "cultivation"]=="field")
 group_factor <- as.factor(subset(samplelist_modified, cultivation == "field")$condition)
 #res_field <- func_edgeR_dge(group_idx, group_1 = group_factor)
@@ -188,29 +191,20 @@ write.table(res_field_sig_down_mapman, "output/res_field_sig_down_mapman.txt", s
 ### Venn Diagrams
 Venn diagram of differentially expressed genes for control vs. stress comparing all samples either from greenhouse or field
 ```{r venn diagram greenhouse-field control vs. stress ALL}
-venn.plot <- venn.diagram(x = list(Greenhouse=rownames(res_greenhouse$top_sig),
-                                   Field=rownames(res_field$top_sig)), 
-            filename=NULL, col = "transparent", fill = c("yellow","green"), 
-            alpha = 0.50, label.col = "black", 
-            cex = 1.5, fontfamily = "sans", fontface = "bold", 
-            cat.col = "black" , cat.cex = 1.5, cat.dist = 0.15, cat.fontfamily = "sans", 
-            rotation.degree = 0, margin = 0.2, scaled=FALSE
-                          )
-#dev.off()
+venn.plot=func_venn_diagram_2(rownames(res_greenhouse$top_sig), 
+                              rownames(res_field$top_sig), 
+                              lab1="Greenhouse", lab2="Field", filepath=NULL)
+plot.new()
 grid.draw(venn.plot)
 ```
 
 
 
 ```{r venn diagram greenhouse-field control vs. stress DOWN}
-venn.plot <- venn.diagram(x = list(Greenhouse=rownames(res_greenhouse$top_sig_down),
-                                   Field=rownames(res_field$top_sig_down)), 
-            filename=NULL, col = "transparent", fill = c("yellow","green"), 
-            alpha = 0.50, label.col = "black", 
-            cex = 1.5, fontfamily = "sans", fontface = "bold", 
-            cat.col = "black" , cat.cex = 1.5, cat.dist = 0.15, cat.fontfamily = "sans", 
-            rotation.degree = 0, margin = 0.2, scaled=FALSE)
-#dev.off()
+venn.plot=func_venn_diagram_2(rownames(res_greenhouse$top_sig_down), 
+                              rownames(res_field$top_sig_down), 
+                              lab1="Greenhouse", lab2="Field", filepath=NULL)
+plot.new()
 grid.draw(venn.plot)
 ```
 
@@ -243,15 +237,10 @@ write.table(intersect_cultivation_condition_down_res, "output/intersect_cultivat
 
 
 ```{r venn diagram greenhouse-field control vs. stress UP}
-venn.plot <- venn.diagram(x = list(Greenhouse=rownames(res_greenhouse$top_sig_up),
-                                   Field=rownames(res_field$top_sig_up)), 
-            filename=NULL, col = "transparent", fill = c("yellow","green"), 
-            alpha = 0.50, label.col = "black", 
-            cex = 1.5, fontfamily = "sans", fontface = "bold", 
-            cat.col = "black" , cat.cex = 1.5, cat.dist = 0.15, cat.fontfamily = "sans", 
-            rotation.degree = 0, margin = 0.2, scaled=FALSE
-                          )
-#dev.off()
+venn.plot=func_venn_diagram_2(rownames(res_greenhouse$top_sig_up), 
+                              rownames(res_field$top_sig_up), 
+                              lab1="Greenhouse", lab2="Field", filepath=NULL)
+plot.new()
 grid.draw(venn.plot)
 ```
 
@@ -274,6 +263,356 @@ intersect_cultivation_condition_up_res <- intersect_cultivation_condition_up_res
 pander(head(intersect_cultivation_condition_up_res[,c(1,2,6,10:13)], n=20))
 write.table(intersect_cultivation_condition_up_res, "output/intersect_cultivation_condition_up_res.txt", sep="\t", row.names=F, quote=F)
 ```
+
+
+## Execute 2nd edgeR procedure function for SUBSETS
+### GREENHOUSE + CONTROL: Tolerant vs. Sensitive
+Execute edgeR procedure to identify differentially expresses genes (DGE) comparing tolerant and sensitive groups for greenhouse AND control samples
+```{r edgeR greenhouse control - tolerant vs. sensitive, echo=TRUE}
+group_idx <- which(samplelist_greenhouse[, "condition"]=="control")
+group_factor <- as.factor(subset(samplelist_greenhouse, condition == "control")$tolerance)
+res_greenhouse_control <- func_edgeR_dge(counts_keep_greenhouse, group_idx, group_1 = group_factor)
+#res_greenhouse_control$sums
+```
+
+
+### GREENHOUSE + STRESS: Tolerant vs. Sensitive
+Execute edgeR procedure to identify differentially expresses genes (DGE) comparing tolerant and sensitive groups for greenhouse AND stress samples
+** pos(1) means HIGHER expression in tolerant than in sensitive cultivars**
+** neg(-1) means LOWER expression in tolerant than in sensitive cultivars**
+```{r edgeR greenhouse stress - tolerant vs. sensitive, echo=TRUE}
+group_idx <- which(samplelist_greenhouse[, "condition"]=="drought stress")
+group_factor <- as.factor(subset(samplelist_greenhouse, condition == "drought stress")$tolerance)
+res_greenhouse_stress <- func_edgeR_dge(counts_keep_greenhouse, group_idx, group_1 = group_factor)
+# res_greenhouse_stress$sums
+```
+
+#### Venn Diagrams
+**Venn diagram of differentially expressed genes for sensitive vs. tolerant comparing control and stress samples from greenhouse**
+```{r venn diagram greenhouse-control-stress - tolerant vs. sensitive}
+venn.plot=func_venn_diagram_2(rownames(res_greenhouse_control$top_sig), 
+                              rownames(res_greenhouse_stress$top_sig), 
+                              lab1="Control", lab2="Stress", filepath=NULL)
+plot.new()
+grid.draw(venn.plot)
+```
+
+Positive logFC which means **HIGHER** expression in tolerant than in sensitive cultivars
+```{r venn diagram greenhouse-control-stress - tolerant vs. sensitive pos}
+venn.plot=func_venn_diagram_2(rownames(res_greenhouse_control$top_sig_up), 
+                              rownames(res_greenhouse_stress$top_sig_up), 
+                              lab1="Control", lab2="Stress", filepath=NULL)
+plot.new()
+grid.draw(venn.plot)
+```
+
+Negative logFC which means **LOWER** expression in tolerant than in sensitive cultivars
+```{r venn diagram greenhouse-control-stress - tolerant vs. sensitive neg}
+venn.plot=func_venn_diagram_2(rownames(res_greenhouse_control$top_sig_down), 
+                              rownames(res_greenhouse_stress$top_sig_down), 
+                              lab1="Control", lab2="Stress", filepath=NULL)
+plot.new()
+grid.draw(venn.plot)
+```
+
+
+### FIELD + CONTROL: Tolerant vs. Sensitive
+Execute edgeR procedure to identify differentially expresses genes (DGE) comparing tolerant and sensitive groups for field AND control samples
+```{r edgeR field-control - tolerant vs. sensitive, echo=TRUE}
+group_idx <- which(samplelist_field[, "condition"]=="control")
+group_factor <- as.factor(subset(samplelist_field, condition == "control")$tolerance)
+res_field_control <- func_edgeR_dge(counts_keep_field, group_idx, group_1 = group_factor)
+# res_field_control$sums
+```
+
+
+### FIELD + STRESS: Tolerant vs. Sensitive
+Execute edgeR procedure to identify differentially expresses genes (DGE) comparing tolerant and sensitive groups for field AND stress samples
+```{r edgeR field-stress - tolerant vs. sensitive, echo=TRUE}
+group_idx <- which(samplelist_field[, "condition"]=="drought stress")
+group_factor <- as.factor(subset(samplelist_field, condition == "drought stress")$tolerance)
+res_field_stress <- func_edgeR_dge(counts_keep_field, group_idx, group_1 = group_factor)
+# res_field_stress$sums
+```
+
+
+#### Venn Diagrams
+**Venn diagram of differentially expressed genes for sensitive vs. tolerant comparing control and stress samples from field**
+```{r venn diagram field-control-stress - tolerant vs. sensitive}
+venn.plot=func_venn_diagram_2(rownames(res_field_control$top_sig), 
+                              rownames(res_field_stress$top_sig), 
+                              lab1="Control", lab2="Stress", filepath=NULL)
+plot.new()
+grid.draw(venn.plot)
+```
+
+Positive logFC which means **HIGHER** expression in tolerant than in sensitive cultivars
+```{r venn diagram field-control-stress - tolerant vs. sensitive pos}
+venn.plot=func_venn_diagram_2(rownames(res_field_control$top_sig_up), 
+                              rownames(res_field_stress$top_sig_up), 
+                              lab1="Control", lab2="Stress", filepath=NULL)
+plot.new()
+grid.draw(venn.plot)
+```
+
+Negative logFC which means **LOWER** expression in tolerant than in sensitive cultivars
+```{r venn diagram field-control-stress - tolerant vs. sensitive neg}
+venn.plot=func_venn_diagram_2(rownames(res_field_control$top_sig_down), 
+                              rownames(res_field_stress$top_sig_down), 
+                              lab1="Control", lab2="Stress", filepath=NULL)
+plot.new()
+grid.draw(venn.plot)
+```
+
+**Venn diagram of differentially expressed genes for sensitive vs. tolerant comparing samples from field and greenhouse**
+**CONTROL SAMPLES**
+Positive logFC which means **HIGHER** expression in tolerant than in sensitive cultivars
+```{r venn diagram greenhouse-field-control - tolerant vs. sensitive pos}
+venn.plot=func_venn_diagram_2(rownames(res_field_control$top_sig_up), 
+                              rownames(res_greenhouse_control$top_sig_up), 
+                              lab1="Field", lab2="Greenhouse", filepath=NULL)
+plot.new()
+grid.draw(venn.plot)
+```
+
+**CONTROL SAMPLES**
+Negative logFC which means **LOWER** expression in tolerant than in sensitive cultivars
+```{r venn diagram greenhouse-field-control - tolerant vs. sensitive neg}
+venn.plot=func_venn_diagram_2(rownames(res_field_control$top_sig_down), 
+                              rownames(res_greenhouse_control$top_sig_down), 
+                              lab1="Field", lab2="Greenhouse", filepath=NULL)
+plot.new()
+grid.draw(venn.plot)
+```
+
+**DROUGHT STRESS SAMPLES**
+Positive logFC which means **HIGHER** expression in tolerant than in sensitive cultivars
+```{r venn diagram greenhouse-field-stress - tolerant vs. sensitive pos}
+venn.plot=func_venn_diagram_2(rownames(res_field_stress$top_sig_up), 
+                              rownames(res_greenhouse_stress$top_sig_up), 
+                              lab1="Field", lab2="Greenhouse", filepath=NULL)
+plot.new()
+grid.draw(venn.plot)
+```
+
+**DROUGHT STRESS SAMPLES**
+Negative logFC which means **LOWER** expression in tolerant than in sensitive cultivars
+```{r venn diagram greenhouse-field-stress - tolerant vs. sensitive neg}
+venn.plot=func_venn_diagram_2(rownames(res_field_stress$top_sig_down), 
+                              rownames(res_greenhouse_stress$top_sig_down), 
+                              lab1="Field", lab2="Greenhouse", filepath=NULL)
+plot.new()
+grid.draw(venn.plot)
+```
+
+**Compare 4 different DGE**
+Positive logFC which means **HIGHER** expression in tolerant than in sensitive cultivars
+```{r venn diagram greenhouse/field control/stress - tolerant vs. sensitive pos}
+venn.plot=func_venn_diagram_4(rownames(res_field_control$top_sig_up), 
+                              rownames(res_field_stress$top_sig_up),
+                              rownames(res_greenhouse_control$top_sig_up),
+                              rownames(res_greenhouse_stress$top_sig_up),
+                              lab1 = "Field \n Control", 
+                              lab2 = "Field \n Stress",
+                              lab3 = "Greenhouse \n Control", 
+                              lab4 = "Greenhouse \n Stress", 
+                              filepath=NULL)
+plot.new()
+grid.draw(venn.plot)
+```
+
+Negative logFC which means **LOWER** expression in tolerant than in sensitive cultivars
+```{r venn diagram greenhouse/field control/stress - tolerant vs. sensitive neg}
+venn.plot=func_venn_diagram_4(rownames(res_field_control$top_sig_down), 
+                              rownames(res_field_stress$top_sig_down),
+                              rownames(res_greenhouse_control$top_sig_down),
+                              rownames(res_greenhouse_stress$top_sig_down),
+                              lab1 = "Field \n Control", 
+                              lab2 = "Field \n Stress",
+                              lab3 = "Greenhouse \n Control", 
+                              lab4 = "Greenhouse \n Stress", 
+                              filepath=NULL)
+plot.new()
+grid.draw(venn.plot)
+```
+
+
+### Save tables for PageMan
+```{r save tables for PageMan tolerant vs. sensitive}
+res_greenhouse_control_pageman <- func_pageman_res(res_greenhouse_control)
+res_greenhouse_stress_pageman <- func_pageman_res(res_greenhouse_stress)
+res_field_control_pageman <- func_pageman_res(res_field_control)
+res_field_stress_pageman <- func_pageman_res(res_field_stress)
+
+write.table(res_greenhouse_control_pageman, "output/pageman_greenhouse_control_all.txt", 
+            sep="\t", row.names=F, quote=F)
+write.table(res_greenhouse_stress_pageman, "output/pageman_greenhouse_stress_all.txt", 
+            sep="\t", row.names=F, quote=F)
+write.table(res_field_control_pageman, "output/pageman_field_control_all.txt", 
+            sep="\t", row.names=F, quote=F)
+write.table(res_field_stress_pageman, "output/pageman_field_stress_all.txt", 
+            sep="\t", row.names=F, quote=F)
+```
+
+
+```{r PageMan tolerant vs. sensitive}
+# merge to mapman bins
+# dir ==  1 --> tol > sens
+# dir == -1 --> sens > tol
+res_field_control_pageman_mapman_T <- merge(res_field_control_pageman[which(res_field_control_pageman$dir == 1),], 
+                                            assoc_mapman, by.x = "pgsc_dmp", by.y = "IDENTIFIER")
+res_field_control_pageman_mapman_S <- merge(res_field_control_pageman[which(res_field_control_pageman$dir == -1),], 
+                                            assoc_mapman, by.x = "pgsc_dmp", by.y = "IDENTIFIER")
+res_field_stress_pageman_mapman_T <- merge(res_field_stress_pageman[which(res_field_stress_pageman$dir == 1),], 
+                                            assoc_mapman, by.x = "pgsc_dmp", by.y = "IDENTIFIER")
+res_field_stress_pageman_mapman_S <- merge(res_field_stress_pageman[which(res_field_stress_pageman$dir == -1),], 
+                                            assoc_mapman, by.x = "pgsc_dmp", by.y = "IDENTIFIER")
+# greenhouse
+res_greenhouse_control_pageman_mapman_T <- merge(res_greenhouse_control_pageman[which(res_greenhouse_control_pageman$dir == 1),], 
+                                            assoc_mapman, by.x = "pgsc_dmp", by.y = "IDENTIFIER")
+res_greenhouse_control_pageman_mapman_S <- merge(res_greenhouse_control_pageman[which(res_greenhouse_control_pageman$dir == -1),], 
+                                            assoc_mapman, by.x = "pgsc_dmp", by.y = "IDENTIFIER")
+res_greenhouse_stress_pageman_mapman_T <- merge(res_greenhouse_stress_pageman[which(res_greenhouse_stress_pageman$dir == 1),], 
+                                            assoc_mapman, by.x = "pgsc_dmp", by.y = "IDENTIFIER")
+res_greenhouse_stress_pageman_mapman_S <- merge(res_greenhouse_stress_pageman[which(res_greenhouse_stress_pageman$dir == -1),], 
+                                            assoc_mapman, by.x = "pgsc_dmp", by.y = "IDENTIFIER")
+
+# res_field_control_pageman_mapman_T <- res_field_control_pageman_mapman_T[order(res_field_control_pageman_mapman_T$BINCODE),]
+# res_field_control_pageman_mapman_S <- res_field_control_pageman_mapman_S[order(res_field_control_pageman_mapman_S$BINCODE),]
+```
+
+
+```{r PageMan tolerant vs. sensitive --> cytochrome P450}
+# number of significant genes in bin 26.10*
+# field
+length(unique(subset(res_field_control_pageman_mapman_T$logFC, 
+              grepl("26.10*",res_field_control_pageman_mapman_T$BINCODE))))
+length(unique(subset(res_field_control_pageman_mapman_S$logFC, 
+              grepl("26.10*",res_field_control_pageman_mapman_S$BINCODE))))
+length(unique(subset(res_field_stress_pageman_mapman_T$logFC, 
+              grepl("26.10*",res_field_stress_pageman_mapman_T$BINCODE))))
+length(unique(subset(res_field_stress_pageman_mapman_S$logFC, 
+              grepl("26.10*",res_field_stress_pageman_mapman_S$BINCODE))))
+# greenhouse
+length(unique(subset(res_greenhouse_control_pageman_mapman_T$logFC, 
+              grepl("26.10*",res_greenhouse_control_pageman_mapman_T$BINCODE))))
+length(unique(subset(res_greenhouse_control_pageman_mapman_S$logFC, 
+              grepl("26.10*",res_greenhouse_control_pageman_mapman_S$BINCODE))))
+length(unique(subset(res_greenhouse_stress_pageman_mapman_T$logFC, 
+              grepl("26.10*",res_greenhouse_stress_pageman_mapman_T$BINCODE))))
+length(unique(subset(res_greenhouse_stress_pageman_mapman_S$logFC, 
+              grepl("26.10*",res_greenhouse_stress_pageman_mapman_S$BINCODE))))
+
+#intersect(res_field_control_pageman_mapman_T$pgsc_dmp[which(grepl("26.10*",res_field_control_pageman_mapman_T$BINCODE))],
+#          res_field_control_pageman_mapman_S$pgsc_dmp[which(grepl("26.10*",res_field_control_pageman_mapman_S$BINCODE))])
+```
+
+
+```{r PageMan tolerant vs. sensitive --> receptor kinases}
+# number of significant genes in bin 30.2*
+# field
+length(unique(subset(res_field_control_pageman_mapman_T$logFC, 
+              grepl("30.2*",res_field_control_pageman_mapman_T$BINCODE))))
+length(unique(subset(res_field_control_pageman_mapman_S$logFC, 
+              grepl("30.2*",res_field_control_pageman_mapman_S$BINCODE))))
+length(unique(subset(res_field_stress_pageman_mapman_T$logFC, 
+              grepl("30.2*",res_field_stress_pageman_mapman_T$BINCODE))))
+length(unique(subset(res_field_stress_pageman_mapman_S$logFC, 
+              grepl("30.2*",res_field_stress_pageman_mapman_S$BINCODE))))
+# greenhouse
+length(unique(subset(res_greenhouse_control_pageman_mapman_T$logFC, 
+              grepl("30.2*",res_greenhouse_control_pageman_mapman_T$BINCODE))))
+length(unique(subset(res_greenhouse_control_pageman_mapman_S$logFC, 
+              grepl("30.2*",res_greenhouse_control_pageman_mapman_S$BINCODE))))
+length(unique(subset(res_greenhouse_stress_pageman_mapman_T$logFC, 
+              grepl("30.2*",res_greenhouse_stress_pageman_mapman_T$BINCODE))))
+length(unique(subset(res_greenhouse_stress_pageman_mapman_S$logFC, 
+              grepl("30.2*",res_greenhouse_stress_pageman_mapman_S$BINCODE))))
+```
+
+
+```{r only receptor kinases (30.2)}
+length(which(grepl("30.2*",merge_mapman_pgsc$BINCODE)))
+mapman_kinases <- merge_mapman_pgsc[which(grepl("30.2*",merge_mapman_pgsc$BINCODE)),]
+                               
+res_field_control_kinases <- func_merge_res_stress_bin(res_field_control$top_all, mapman_kinases)
+res_field_stress_kinases <- func_merge_res_stress_bin(res_field_stress$top_all, mapman_kinases)
+res_greenhouse_control_kinases <- func_merge_res_stress_bin(res_greenhouse_control$top_all, mapman_kinases)
+res_greenhouse_stress_kinases <- func_merge_res_stress_bin(res_greenhouse_stress$top_all, mapman_kinases)
+
+fdr_kinases <- cbind(field_control = res_field_control_kinases$FDR,
+                     field_stress = res_field_stress_kinases$FDR,
+                     greenhouse_control = res_greenhouse_control_kinases$FDR,
+                     greenhouse_stress = res_greenhouse_stress_kinases$FDR)
+fdr_kinases_min <- apply(fdr_kinases, 1, min)
+length(which(fdr_kinases_min<0.001))
+
+logfc_kinases <- cbind(field_control = res_field_control_kinases$logFC,
+                     field_stress = res_field_stress_kinases$logFC,
+                     greenhouse_control = res_greenhouse_control_kinases$logFC,
+                     greenhouse_stress = res_greenhouse_stress_kinases$logFC)
+
+rownames(logfc_kinases) <- res_field_stress_kinases$pgsc_dmg
+logfc_kinases_max <- abs(apply(logfc_kinases, 1, max))
+logfc_kinases_part <- logfc_kinases[which(fdr_kinases_min < 0.001),]
+#logfc_kinases_part <- logfc_kinases[which(logfc_kinases_max > 1),]
+hist(logfc_kinases_part)
+logfc_kinases_part <- unique(merge(logfc_kinases_part, assoc_pgsc[,c(1,5)], by.x="row.names", by.y="pgsc_dmg"))
+dim(logfc_kinases_part)
+```
+
+
+```{r heatmap only receptor kinases bin}
+mat_data <- as.matrix(logfc_kinases_part[,c(2:5)])
+rownames(mat_data) <- logfc_kinases_part[,6]
+distance = dist(mat_data, method = "euclidian")
+cluster = hclust(distance, method = "average")
+my_palette <- colorRampPalette(c("blue", "white", "red"))(n = 299)
+col_breaks = c(seq(-4,-1,length=100), # for blue
+               seq(-1,1,length=100), # for white
+               seq(1,4,length=100)) # for red
+
+pdf("figures/heatmap_log2FC_kinases.pdf", width=6, height=15)
+
+lmat=rbind(4:3, 2:1)
+lhei=c(0.4, 5)
+lwid=c(1, 4)
+
+layout(mat = lmat, widths = lwid, heights = lhei)
+
+heatmap.2(mat_data,
+  #cellnote = signif2,  # same data set for cell labels
+  #notecex=1.5, # numeric scaling factor for cellnote items
+  colsep=1:ncol(mat_data), 
+  rowsep=1:nrow(mat_data),
+  sepwidth=c(0.01,0.05),
+  sepcolor="black",
+  main = "", # heat map title
+  #notecol="black",      # change font color of cell labels to black
+  density.info="none",  # turns off density plot inside color legend
+  trace="none",         # turns off trace lines inside the heat map
+  margins =c(8,18),     # widens margins around plot
+  keysize=1.5,
+  cexRow=1.2,
+  cexCol=1.5,
+  adjCol=c(0,1),
+  srtCol = 330,
+  lhei=c(0.4, 5),
+  col=my_palette,       # use on color palette defined earlier 
+  breaks=col_breaks,    # enable color transition at specified limits
+  #RowSideColors=mycolor,
+  #ColSideColors=column_color,
+  Rowv=as.dendrogram(cluster),
+  dendrogram="row",     # only draw a row dendrogram
+  Colv="NA")            # turn off column clustering```
+
+dev.off()
+@
+```
+
+
+
+
 
 ## save workspace
 ```{r save workspace}
