@@ -46,72 +46,9 @@ head(assoc_pgsc)
 ```
 
 
-### Load samplelist
-```{r load samplelist}
-samplelist <- read.table("data/samplelist.txt", header=TRUE, sep = "\t")
-
-# new ordering!
-samplelist_ordered <- samplelist[with(samplelist, order(trial_number, condition, cultivar)),]
-head(samplelist_ordered)
-
-# rename and reorder cultivars
-levels(samplelist_ordered$cultivar) <- c("Alegria", "Desiree", "Milva", "Saturna")
-samplelist_ordered$cultivar <- factor(samplelist_ordered$cultivar, levels=c("Alegria", "Milva", "Desiree", "Saturna"))
-
-# rename conditions
-levels(samplelist_ordered$condition) <- c("control", "drought stress")
-
-# samplelist subset for greenhouse/field
-samplelist_greenhouse <- subset(samplelist_ordered, samplelist_ordered$cultivation == "greenhouse")
-samplelist_field <- subset(samplelist_ordered, samplelist_ordered$cultivation == "field")
-
-# droplevels is used to drop unused levels from a factor or, more commonly, from factors in a data frame.
-samplelist_greenhouse <- droplevels(samplelist_greenhouse) 
-samplelist_field <- droplevels(samplelist_field)
-```
-
-
-### Modify samplelist
-```{r modify samplelist}
-# interaction of two factors: cultivar x condition
-levels(interaction(samplelist_ordered$cultivar, samplelist_ordered$condition))
-
-# interaction of two factors: cultivation x condition
-levels(interaction(samplelist_ordered$cultivation, samplelist_ordered$condition))
-
-# define vector for trial information (cultivation type)
-trial <- c(rep("field_1",8), rep("greenhouse_1",8), rep("greenhouse_2",8), rep("greenhouse_3",8), rep("field_2",8), rep("field_3",8))  
-
-# combine samplelist with trial information and combined factors (interactions)
-samplelist_ordered <- cbind(samplelist_ordered, 
-                            trial, 
-                            interaction(samplelist_ordered$cultivar, samplelist_ordered$condition), 
-                            interaction(samplelist_ordered$cultivation, samplelist_ordered$condition))
-
-# change colnames of samplelist
-colnames(samplelist_ordered) <- c("sample_number", "sample_name", "trial_number", "trial_name", 
-                                  "cultivation", "cultivar", "condition", "tolerance",
-                                  "libsize_raw", "libsize_mapped", "trial", 
-                                  "cultivar_condition","cultivation_condition")
-
-head(samplelist_ordered)
-
-# convert trial information into factor
-samplelist_ordered$trial <- as.factor(samplelist_ordered$trial)
-class(samplelist_ordered$trial)
-levels(samplelist_ordered$trial)
-
-# relevel trial_name
-levels(samplelist_ordered$trial_name)
-samplelist_ordered$trial_name <- factor(samplelist_ordered$trial_name, 
-                                        levels=c("JKI-GWH1", "MPITest1.2", "MPITest2", 
-                                                 "JKIFeld2012", "MPIFeld2011", "MPIFeld2012") )
-
-levels(samplelist_ordered$cultivar_condition)
-levels(samplelist_ordered$cultivation_condition)
-
-# save modified samplelist
-write.table(samplelist_ordered, "output/samplelist_modified.txt", sep="\t")
+### Samplelist processing
+```{r child = 'Modify_RNASeq_Samplelist.Rmd'}
+# knit('scripts/Modify_RNASeq_Samplelist.Rmd')
 ```
 
 
