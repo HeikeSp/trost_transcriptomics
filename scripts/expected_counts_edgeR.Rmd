@@ -53,6 +53,7 @@ source("../libpurzel/func_edgeR_dge.R")
 source("../libpurzel/func_pageman_res.R")
 source("../libpurzel/func_merge_sig_res_mapman.R")
 source("../libpurzel/func_edgeR_top.R")
+source("../libpurzel/func_intersecting_dge.R")
 ```
 
 
@@ -200,7 +201,7 @@ grid.draw(venn.plot)
 ```
 
 
-
+#### Only Down-regulated genes
 ```{r venn diagram greenhouse-field control vs. stress DOWN}
 venn.plot=func_venn_diagram_2(rownames(res_greenhouse$top_sig_down), 
                               rownames(res_field$top_sig_down), 
@@ -211,32 +212,19 @@ grid.draw(venn.plot)
 
 
 ```{r intersection greenhouse-field control vs. stress DOWN}
-intersect_cultivation_condition_down <- intersect(rownames(res_field$top_sig_down), 
-                                                  rownames(res_greenhouse$top_sig_down))
 
-intersect_cultivation_condition_down_res <- cbind(res_field$top_sig_down[rownames(res_field$top_sig_down) %in% intersect_cultivation_condition_down,], res_greenhouse$top_sig_down[rownames(res_greenhouse$top_sig_down) %in% intersect_cultivation_condition_down,])
-
-colnames(intersect_cultivation_condition_down_res) <- c("logFC_field","logCPM_field","PValue_field","FDR_field",
-                                                        "logFC_gh","logCPM_gh","PValue_gh","FDR_gh")
-
-intersect_cultivation_condition_down_res$logFC_mean <- apply(cbind(intersect_cultivation_condition_down_res$logFC_field,
-                                                                   intersect_cultivation_condition_down_res$logFC_gh),1,mean)
-intersect_cultivation_condition_down_res$logFC_sum <- apply(cbind(intersect_cultivation_condition_down_res$logFC_field,
-                                                                  intersect_cultivation_condition_down_res$logFC_gh),1,sum)
-
-intersect_cultivation_condition_down_res <- merge(intersect_cultivation_condition_down_res, 
-                                                  merge_mapman_pgsc_dmg, by.x="row.names", by.y="pgsc_dmg")
-
-intersect_cultivation_condition_down_res <- intersect_cultivation_condition_down_res[order(intersect_cultivation_condition_down_res$logFC_sum),]
-
-pander(head(intersect_cultivation_condition_down_res[,c(1,2,6,10:13)], n=25))
+intersect_cultivation_condition_down_res <- 
+  func_intersecting_dge(set1 = res_field$top_sig_down, 
+                        set2 = res_greenhouse$top_sig_down, 
+                        lab1 = "field",
+                        lab2 = "gh")
 
 write.table(intersect_cultivation_condition_down_res, "output/intersect_cultivation_condition_down_res.txt", 
             sep="\t", row.names=F, quote=F)
 ```
 
 
-
+#### Only Up-regulated genes
 ```{r venn diagram greenhouse-field control vs. stress UP}
 venn.plot=func_venn_diagram_2(rownames(res_greenhouse$top_sig_up), 
                               rownames(res_field$top_sig_up), 
@@ -247,21 +235,13 @@ grid.draw(venn.plot)
 
 
 ```{r intersection greenhouse-field control vs. stress UP}
-intersect_cultivation_condition_up <- intersect(rownames(res_field$top_sig_up), 
-                                                rownames(res_greenhouse$top_sig_up))
 
-intersect_cultivation_condition_up_res <- cbind(res_field$top_sig_up[rownames(res_field$top_sig_up) %in% intersect_cultivation_condition_up,], res_greenhouse$top_sig_up[rownames(res_greenhouse$top_sig_up) %in% intersect_cultivation_condition_up,])
+intersect_cultivation_condition_up_res <- 
+  func_intersecting_dge(set1 = res_field$top_sig_up, 
+                        set2 = res_greenhouse$top_sig_up, 
+                        lab1 = "field",
+                        lab2 = "gh")
 
-colnames(intersect_cultivation_condition_up_res) <- c("logFC_field","logCPM_field","PValue_field","FDR_field",
-                                                        "logFC_gh","logCPM_gh","PValue_gh","FDR_gh")
-intersect_cultivation_condition_up_res$logFC_mean <- apply(cbind(intersect_cultivation_condition_up_res$logFC_field,intersect_cultivation_condition_up_res$logFC_gh),1,mean)
-intersect_cultivation_condition_up_res$logFC_sum <- apply(cbind(intersect_cultivation_condition_up_res$logFC_field,intersect_cultivation_condition_up_res$logFC_gh),1,sum)
-
-intersect_cultivation_condition_up_res <- merge(intersect_cultivation_condition_up_res, merge_mapman_pgsc_dmg, by.x="row.names", by.y="pgsc_dmg")
-
-intersect_cultivation_condition_up_res <- intersect_cultivation_condition_up_res[order(intersect_cultivation_condition_up_res$logFC_sum, decreasing=T),]
-
-pander(head(intersect_cultivation_condition_up_res[,c(1,2,6,10:13)], n=20))
 write.table(intersect_cultivation_condition_up_res, "output/intersect_cultivation_condition_up_res.txt", sep="\t", row.names=F, quote=F)
 ```
 
@@ -566,7 +546,7 @@ dim(logfc_kinases_part)
 ```
 
 
-```{r heatmap only receptor kinases bin}
+```{r heatmap only receptor kinases bin, eval=FALSE}
 mat_data <- as.matrix(logfc_kinases_part[,c(2:5)])
 rownames(mat_data) <- logfc_kinases_part[,6]
 distance = dist(mat_data, method = "euclidian")
@@ -611,7 +591,7 @@ heatmap.2(mat_data,
   Colv="NA")            # turn off column clustering```
 
 dev.off()
-@
+
 ```
 
 
