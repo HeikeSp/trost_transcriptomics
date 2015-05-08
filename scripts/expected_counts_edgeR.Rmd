@@ -219,6 +219,9 @@ intersect_cultivation_condition_down_res <-
                         lab1 = "field",
                         lab2 = "gh")
 
+# first 25 intersecting DGE (columns: row.names, logFC of set1, logFC of set2, logFC mean, logFC sum, annotations)
+pander(head(  intersect_cultivation_condition_down_res[,c(1,2,6,10:13)], n=25))
+
 write.table(intersect_cultivation_condition_down_res, "output/intersect_cultivation_condition_down_res.txt", 
             sep="\t", row.names=F, quote=F)
 ```
@@ -242,7 +245,12 @@ intersect_cultivation_condition_up_res <-
                         lab1 = "field",
                         lab2 = "gh")
 
-write.table(intersect_cultivation_condition_up_res, "output/intersect_cultivation_condition_up_res.txt", sep="\t", row.names=F, quote=F)
+# first 25 intersecting DGE (columns: row.names, logFC of set1, logFC of set2, logFC mean, logFC sum, annotations)
+pander(head(  intersect_cultivation_condition_up_res[,c(1,2,6,10:13)], n=25))
+
+write.table(intersect_cultivation_condition_up_res, 
+            "output/intersect_cultivation_condition_up_res.txt", 
+            sep="\t", row.names=F, quote=F)
 ```
 
 
@@ -641,6 +649,160 @@ res_field_sensitive$sums
 head(res_field_sensitive$top_sig)
 ```
 
+
+```{r intersection greenhouse-field-TOLERANT control vs. stress}
+# up-regulated genes
+intersect_tolerant_up <- 
+  func_intersecting_dge(set1 = res_field_tolerant$top_sig_up, 
+                        set2 = res_greenhouse_tolerant$top_sig_up, 
+                        lab1 = "field", lab2 = "gh")
+
+# first 25 intersecting DGE (columns: row.names, logFC of set1, logFC of set2, logFC mean, logFC sum, annotations)
+pander(head(  intersect_tolerant_up[,c(1,2,6,10:13)], n=25))
+
+write.table(intersect_tolerant_up, "output/intersect_tolerant_up.txt", sep="\t", row.names=F, quote=F)
+
+# venn diagram
+venn.plot=func_venn_diagram_2(rownames(res_greenhouse_tolerant$top_sig_up), 
+                              rownames(res_field_tolerant$top_sig_up), 
+                              lab1="Greenhouse", lab2="Field", filepath=NULL)
+plot.new()
+grid.draw(venn.plot)
+
+#############################################
+
+# down-regulated genes
+intersect_tolerant_down <- 
+  func_intersecting_dge(set1 = res_field_tolerant$top_sig_down, 
+                        set2 = res_greenhouse_tolerant$top_sig_down, 
+                        lab1 = "field", lab2 = "gh")
+
+# no intersection!
+```
+
+
+```{r intersection greenhouse-field-SENSITIVE control vs. stress}
+# up-regulated genes
+intersect_sensitive_up <- 
+  func_intersecting_dge(set1 = res_field_sensitive$top_sig_up, 
+                        set2 = res_greenhouse_sensitive$top_sig_up, 
+                        lab1 = "field", lab2 = "gh")
+
+# first 25 intersecting DGE (columns: row.names, logFC of set1, logFC of set2, logFC mean, logFC sum, annotations)
+pander(head(  intersect_sensitive_up[,c(1,2,6,10:13)], n=25))
+
+write.table(intersect_sensitive_up, "output/intersect_sensitive_up.txt", sep="\t", row.names=F, quote=F)
+
+# venn diagram
+venn.plot=func_venn_diagram_2(rownames(res_greenhouse_sensitive$top_sig_up), 
+                              rownames(res_field_sensitive$top_sig_up), 
+                              lab1="Greenhouse", lab2="Field", filepath=NULL)
+plot.new()
+grid.draw(venn.plot)
+
+#############################################
+
+# down-regulated genes
+intersect_sensitive_down <- 
+  func_intersecting_dge(set1 = res_field_sensitive$top_sig_down, 
+                        set2 = res_greenhouse_sensitive$top_sig_down, 
+                        lab1 = "field", lab2 = "gh")
+
+# first 25 intersecting DGE (columns: row.names, logFC of set1, logFC of set2, logFC mean, logFC sum, annotations)
+pander(head(  intersect_sensitive_down[,c(1,2,6,10:13)], n=25))
+
+write.table(intersect_sensitive_down, "output/intersect_sensitive_down.txt", sep="\t", row.names=F, quote=F)
+
+# venn diagram
+venn.plot=func_venn_diagram_2(rownames(res_greenhouse_sensitive$top_sig_down), 
+                              rownames(res_field_sensitive$top_sig_down), 
+                              lab1="Greenhouse", lab2="Field", filepath=NULL)
+plot.new()
+grid.draw(venn.plot)
+```
+
+
+```{r intersection sensitive-tolerant-GREENHOUSE control vs. stress}
+# up-regulated genes
+intersect_greenhouse_up <- 
+  func_intersecting_dge(set1 = res_greenhouse_tolerant$top_sig_up, 
+                        set2 = res_greenhouse_sensitive$top_sig_up, 
+                        lab1 = "tolerant", lab2 = "sensitive")
+
+# first 25 intersecting DGE (columns: row.names, logFC of set1, logFC of set2, logFC mean, logFC sum, annotations)
+pander(head(  intersect_greenhouse_up[,c(1,2,6,10:13)], n=25))
+
+write.table(intersect_greenhouse_up, "output/intersect_greenhouse_up.txt", sep="\t", row.names=F, quote=F)
+
+# venn diagram
+venn.plot=func_venn_diagram_2(rownames(res_greenhouse_tolerant$top_sig_up), 
+                              rownames(res_greenhouse_sensitive$top_sig_up), 
+                              lab1="Tolerant", lab2="Sensitive", filepath=NULL)
+plot.new()
+grid.draw(venn.plot)
+
+#############################################
+
+# down-regulated genes
+intersect_greenhouse_down <- 
+  func_intersecting_dge(set1 = res_greenhouse_tolerant$top_sig_down, 
+                        set2 = res_greenhouse_sensitive$top_sig_down, 
+                        lab1 = "tolerant", lab2 = "sensitive")
+
+# first 25 intersecting DGE (columns: row.names, logFC of set1, logFC of set2, logFC mean, logFC sum, annotations)
+pander(head(  intersect_greenhouse_down[,c(1,2,6,10:13)], n=25))
+
+write.table(intersect_greenhouse_down, "output/intersect_greenhouse_down.txt", sep="\t", row.names=F, quote=F)
+
+# venn diagram
+venn.plot=func_venn_diagram_2(rownames(res_greenhouse_tolerant$top_sig_down), 
+                              rownames(res_greenhouse_sensitive$top_sig_down), 
+                              lab1="Tolerant", lab2="Sensitive", filepath=NULL)
+plot.new()
+grid.draw(venn.plot)
+```
+
+
+```{r intersection sensitive-tolerant-FIELD control vs. stress}
+# up-regulated genes
+intersect_field_up <- 
+  func_intersecting_dge(set1 = res_field_tolerant$top_sig_up, 
+                        set2 = res_field_sensitive$top_sig_up, 
+                        lab1 = "tolerant", lab2 = "sensitive")
+
+# first 25 intersecting DGE (columns: row.names, logFC of set1, logFC of set2, logFC mean, logFC sum, annotations)
+pander(head(  intersect_field_up[,c(1,2,6,10:13)], n=25))
+
+write.table(intersect_field_up, "output/intersect_field_up.txt", sep="\t", row.names=F, quote=F)
+
+# venn diagram
+venn.plot=func_venn_diagram_2(rownames(res_field_tolerant$top_sig_up), 
+                              rownames(res_field_sensitive$top_sig_up), 
+                              lab1="Tolerant", lab2="Sensitive", filepath=NULL)
+plot.new()
+grid.draw(venn.plot)
+
+#############################################
+
+# down-regulated genes
+intersect_field_down <- 
+  func_intersecting_dge(set1 = res_field_tolerant$top_sig_down, 
+                        set2 = res_field_sensitive$top_sig_down, 
+                        lab1 = "tolerant", lab2 = "sensitive")
+
+# first 25 intersecting DGE (columns: row.names, logFC of set1, logFC of set2, logFC mean, logFC sum, annotations)
+pander(head(  intersect_field_down[,c(1,2,6,10:13)], n=25))
+
+write.table(intersect_field_down, "output/intersect_field_down.txt", sep="\t", row.names=F, quote=F)
+
+# venn diagram
+venn.plot=func_venn_diagram_2(rownames(res_field_tolerant$top_sig_down), 
+                              rownames(res_field_sensitive$top_sig_down), 
+                              lab1="Tolerant", lab2="Sensitive", filepath=NULL)
+plot.new()
+grid.draw(venn.plot)
+```
+
 ### merge logFC and pvalue of different tables (greenhouse)
 ```{r merge logFC and pvalue of sig. regulated genes greenhouse}
 # Stress < Control
@@ -649,6 +811,7 @@ res_greenhouse_merge_down_sig <- func_edgeR_top_down(res_greenhouse, res_greenho
 # Stress > Control
 res_greenhouse_merge_up_sig <- func_edgeR_top_up(res_greenhouse, res_greenhouse_sensitive, res_greenhouse_tolerant)
 dim(res_greenhouse_merge_down_sig)
+head(res_greenhouse_merge_down_sig)
 
 # DOWN
 # col_plot<-rep(rgb(50,50,50,50,maxColorValue=255),749)
