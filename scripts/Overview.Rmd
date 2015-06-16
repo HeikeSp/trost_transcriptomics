@@ -13,14 +13,15 @@ Overview of RNA-Seq Data
 ### Set working directory
 ```{r set working directory}
 getwd()
-setwd("repos/trost_transcriptomics")
+#setwd("D:/work/repos/trost_transcriptomics")
 ```
 
 
-### Load workspace, packages and scripts
-```{r load workspace}
-load("fpkm.RData")
+[solution for issue with working directory and knitr](https://github.com/yihui/knitr/issues/277)
 
+
+### Load workspace, packages and scripts
+```{r load workspace, message=FALSE}
 # load packages
 library(pcaMethods)
 library(knitr)
@@ -29,7 +30,20 @@ library(psych)
 library(corrplot)
 library(corrgram)
 library(VennDiagram)
+library(pander)
 
+# set options for pander
+panderOptions('table.split.table', 200)
+
+# set options for knitr
+opts_chunk$set(fig.width=5, fig.height=5, cache=FALSE, highlight = TRUE, fig.show="asis")
+opts_knit$set(root.dir = 'D:/work/repos/trost_transcriptomics/')
+
+#load("fpkm.RData")
+```
+
+### Source R functions
+```{r Source R functions, include=FALSE}
 # source functions
 source("../libpurzel/colors.R")
 source("../libpurzel/func_pca_plots.R")
@@ -128,7 +142,7 @@ genes_rnipals_res@R2
 ### PCA plots
 ```{r PCA plots}
 
-pdf("../figures/pca_plot_all_samples.pdf")
+pdf("figures/pca_plot_all_samples.pdf")
 par(mar=c(4.5, 4.5, 1.5, 0.5))
 
 palette(cols_sample_time2)
@@ -224,7 +238,7 @@ func_5pairs_plot(genes_log2_ppca_res, factors = samplelist_ordered, color_factor
 
 ### PCA plots of log2 values
 ```{r PCA plots of log2 values}
-pdf("../figures/pca_plot_all_samples_log2.pdf")
+pdf("figures/pca_plot_all_samples_log2.pdf")
 par(mar=c(4.5, 4.5, 1.5, 0.5))
 
 palette(cols_sample_time2)
@@ -257,7 +271,6 @@ fpkm_greenhouse_row_max <- apply(fpkm_genes_greenhouse, 1, max)
 
 length(which(fpkm_field_row_max < 1))
 length(which(fpkm_greenhouse_row_max < 1))
-
 
 fpkm_genes_field_filtered <- fpkm_genes_field[-which(fpkm_field_row_max < 1),] # remove rows where sum equals zero
 dim(fpkm_genes_field_filtered)
@@ -326,7 +339,7 @@ genes_ppca_greenhouse_log2_res@R2
 ### PCA plots greenhouse
 ```{r PCA plots greenhouse}
 
-pdf("../figures/pca_plot_greenhouse.pdf")
+pdf("figures/pca_plot_greenhouse.pdf")
 par(mar=c(4.5, 4.5, 1.5, 0.5))
 
 palette(cols_treatment)
@@ -362,18 +375,18 @@ dev.off()
 
 ```{r PCA plots greenhouse thesis}
 # for phd-thesis
-pdf("../../../../Doktorarbeit/figures/rna_pca_greenhouse.pdf", width=6, height=6)
+# pdf("../../../../Doktorarbeit/figures/rna_pca_greenhouse.pdf", width=6, height=6)
 par(mar=c(4.5, 4.5, 1.5, 0.5))
 func_pca_plot(genes_ppca_greenhouse_res, 1, 4, factors=samplelist_greenhouse, 
                   color_factor = "condition", symbol_size=2, 19, "bottomright", 1.2)
-dev.off()
+# dev.off()
 
-pdf("../../../../Doktorarbeit/figures/rna_pca_greenhouse_cul.pdf", width=6, height=6)
+# pdf("../../../../Doktorarbeit/figures/rna_pca_greenhouse_cul.pdf", width=6, height=6)
 par(mar=c(4.5, 4.5, 1.5, 0.5))
 func_pca_plot_sym(genes_ppca_greenhouse_res, 1, 4, factors=samplelist_greenhouse, 
                   color_factor = "cultivar", symbols = c(19,17), 
                   symbol_factor = "condition", symbol_size=2, "topright", 1.2, "topleft", 1.2)
-dev.off()
+# dev.off()
 ```
 
 
@@ -381,7 +394,7 @@ dev.off()
 ### PCA plots greenhouse log2 values
 ```{r PCA plots greenhouse log2 values}
 
-pdf("../figures/pca_plot_greenhouse_log2.pdf")
+pdf("figures/pca_plot_greenhouse_log2.pdf")
 par(mar=c(4.5, 4.5, 1.5, 0.5))
 
 palette(cols_treatment)
@@ -400,7 +413,7 @@ func_pca_plot(genes_ppca_greenhouse_log2_res, 1, 4, factors=samplelist_greenhous
 
 # cultivar + condition
 func_5pairs_plot_sym(genes_ppca_greenhouse_log2_res, factors = samplelist_greenhouse, 
-                     color_factor = "cultivar", c(19,17), "condition", symbol_size=2)
+                     color_factor = "cultivar", c(19,17), "condition")
 
 func_pca_plot_sym(genes_ppca_greenhouse_log2_res, 2, 3, factors=samplelist_greenhouse, 
                   color_factor = "cultivar", symbols = c(19,17), 
@@ -424,7 +437,7 @@ dev.off()
 ### PCA plots field
 ```{r PCA plots field}
 
-pdf("../figures/pca_plot_field.pdf")
+pdf("figures/pca_plot_field.pdf")
 par(mar=c(4.5, 4.5, 1.5, 0.5))
 
 palette(cols_treatment)
@@ -472,26 +485,27 @@ dev.off()
 #### for phd-thesis
 ```{r PCA plots field thesis}
 palette(cols_treatment)
-pdf("../../../../Doktorarbeit/figures/rna_pca_field.pdf", width=6, height=6)
+# pdf("../../../../Doktorarbeit/figures/rna_pca_field.pdf", width=6, height=6)
 par(mar=c(4.5, 4.5, 1.5, 0.5))
 func_pca_plot(genes_ppca_field_res, 1, 3, factors=samplelist_field, 
                   color_factor = "condition", symbol_size=2, 19, "bottomright", 1.2)
-dev.off()
+# dev.off()
 
 palette(cols_cultivar)
-pdf("../../../../Doktorarbeit/figures/rna_pca_field_cul.pdf", width=6, height=6)
+
+# pdf("../../../../Doktorarbeit/figures/rna_pca_field_cul.pdf", width=6, height=6)
 par(mar=c(4.5, 4.5, 1.5, 0.5))
 func_pca_plot_sym(genes_ppca_field_res, 1, 3, factors=samplelist_field, 
                   color_factor = "cultivar", symbols = c(19,17), 
                   symbol_factor = "condition", symbol_size=2, "bottomright", 1.2, "bottomleft", 1.2)
-dev.off()
+# dev.off()
 ```
 
 
 ### PCA plots field log2 values
 ```{r PCA plots field log2 values}
 
-pdf("../figures/pca_plot_field_log2.pdf")
+pdf("figures/pca_plot_field_log2.pdf")
 par(mar=c(4.5, 4.5, 1.5, 0.5))
 
 palette(cols_treatment)
@@ -510,7 +524,7 @@ func_pca_plot(genes_ppca_field_log2_res, 1, 4, factors=samplelist_field,
 
 # cultivar + condition
 func_5pairs_plot_sym(genes_ppca_field_log2_res, factors = samplelist_field, 
-                     color_factor = "cultivar", c(19,17), "condition", symbol_size=2)
+                     color_factor = "cultivar", c(19,17), "condition")
 
 func_pca_plot_sym(genes_ppca_field_log2_res, 2, 3, factors=samplelist_field, 
                   color_factor = "cultivar", symbols = c(19,17), 
@@ -561,7 +575,8 @@ col_breaks = c(seq(-1,-0.3,length=100), # for blue
 
 # for Phd-thesis: cultivar effect, with treatment as symbol
 #pdf("../../../../Doktorarbeit/figures/heatmap_log2FC_signif_cultivars_pot.pdf", width=6, height=10)
-pdf("../figures/heatmap_corr.pdf", width=8, height=8)
+
+pdf("figures/heatmap_corr.pdf", width=8, height=8)
 
 lmat=rbind(4:3, 2:1)
 lhei=c(0.8, 4)
@@ -607,7 +622,7 @@ res_corr_mtest <- func_cor_mtest(fpkm_genes_log2_t, 0.95)
 class(res_corr_mtest)
 dim(res_corr_mtest[[2]])
 
-pdf("../figures/corrplot.pdf",10,10)
+pdf("figures/corrplot.pdf",10,10)
 corrplot(res_corr$r, method="color", order="hclust", hclust.method="average", tl.col="black", tl.cex=0.5)
 
 # insignificant pairs are crossed out
@@ -627,7 +642,9 @@ high_conf_transcripts_per_sample <- apply(fpkm_all, 2, function(x) length(which(
 summary(high_conf_transcripts_per_sample)
 high_conf_transcripts_per_sample[1]
 
-write.table(cbind(identified_transcripts_per_sample, high_conf_transcripts_per_sample), "../output/number_of_transcripts.txt", sep="\t")
+write.table(cbind(identified_transcripts_per_sample, 
+                  high_conf_transcripts_per_sample), 
+            "output/number_of_transcripts.txt", sep="\t")
 
 identified_transcripts_per_sample_idx <- apply(fpkm_all, 2, function(x) which(x>0))
 high_conf_transcripts_per_sample_idx <- apply(fpkm_all, 2, function(x) which(x>1))
@@ -710,7 +727,7 @@ w=list(
 
 venn.plot <- venn.diagram(
   x = w,  
-  #filename = "../figures/all_field_venn_all_cultivars.png",
+  #filename = "figures/all_field_venn_all_cultivars.png",
   filename=NULL,
   col = "black",
   fill = c("goldenrod1", "dodgerblue2", "darkorange2", "cyan3"), #category colors  
@@ -733,7 +750,7 @@ w=list(
 
 venn.plot <- venn.diagram(
   x = w,  
-  #filename = "../figures/all_field_venn_all_cultivars.png",
+  #filename = "figures/all_field_venn_all_cultivars.png",
   filename=NULL,
   col = "black",
   fill = c("goldenrod1", "dodgerblue2", "darkorange2", "cyan3"), #category colors  
@@ -755,7 +772,7 @@ w=list(
   "Saturna" = saturna)
 venn.plot <- venn.diagram(
   x = w,  
-  #filename = "../figures/all_field_venn_all_cultivars.png",
+  #filename = "figures/all_field_venn_all_cultivars.png",
   filename=NULL,
   col = "black",
   fill = c("goldenrod1", "dodgerblue2", "darkorange2", "cyan3"), #category colors  
@@ -833,7 +850,10 @@ head(fpkm_fc_field_sig)
 
 fpkm_fc_field_sig_dmp <- merge(fpkm_fc_field_sig, assoc_pgsc, by.x="names", by.y="pgsc_dmg")
 head(fpkm_fc_field_sig_dmp)
-write.table(fpkm_fc_field_sig_dmp, "../output/fpkm_fc_field_sig_dmp.txt", row.names=F, quote=F, sep="\t")
+
+write.table(fpkm_fc_field_sig_dmp, 
+            "output/fpkm_fc_field_sig_dmp.txt", 
+            row.names = F, quote = F, sep = "\t")
 
 hist(as.numeric(fpkm_fc_field_sig), breaks=20, col="grey")
 sort(as.numeric(fpkm_fc_field_sig[,2]))
@@ -855,7 +875,10 @@ class(fpkm_fc_greenhouse_sig[,2])
 
 fpkm_fc_greenhouse_sig_dmp <- merge(fpkm_fc_greenhouse_sig, assoc_pgsc, by.x="names", by.y="pgsc_dmg")
 head(fpkm_fc_greenhouse_sig_dmp)
-write.table(fpkm_fc_greenhouse_sig_dmp, "../output/fpkm_fc_greenhouse_sig_dmp.txt", row.names=F, quote=F, sep="\t")
+
+write.table(fpkm_fc_greenhouse_sig_dmp, 
+            "output/fpkm_fc_greenhouse_sig_dmp.txt", 
+            row.names = F, quote = F, sep = "\t")
 
 hist(as.numeric(fpkm_fc_greenhouse_sig[,2]), breaks=20, col="grey")
 sort(as.numeric(fpkm_fc_greenhouse_sig[,2]))
@@ -1110,8 +1133,8 @@ fpkm_fc_all_drought <- func_specific_genes_condition(fpkm_data = fpkm_all,
 
 
 ```{r barplot of specific genes}
-#pdf("../figures/barplot_specific_genes.pdf", width=6, height=6)
-pdf("../../../../Doktorarbeit/figures/barplot_specific_genes.pdf", width=6, height=6)
+#pdf("figures/barplot_specific_genes.pdf", width=6, height=6)
+#pdf("../../../../Doktorarbeit/figures/barplot_specific_genes.pdf", width=6, height=6)
 par(mar=c(9, 4.5, 1, 0.5))
 labs = c("greenhouse", "field", 
          "Alegria greenhouse", "Alegria field", 
@@ -1131,7 +1154,7 @@ barplot(c(fpkm_fc_greenhouse$specific_number, fpkm_fc_field$specific_number,
 
 text(cex=1.5, x=seq(2,end_point,by=2),  y=-1, labs, xpd=TRUE, srt=45, pos=2)
 
-dev.off()
+#dev.off()
 ```
 
 
