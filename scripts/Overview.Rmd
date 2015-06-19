@@ -31,13 +31,14 @@ library(corrplot)
 library(corrgram)
 library(VennDiagram)
 library(pander)
+library(RColorBrewer)
 
 # set options for pander
 panderOptions('table.split.table', 200)
 
 # set options for knitr
 opts_chunk$set(fig.width=5, fig.height=5, cache=FALSE, highlight = TRUE, fig.show="asis")
-opts_knit$set(root.dir = 'D:/work/repos/trost_transcriptomics/')
+opts_knit$set(root.dir = '../')
 
 #load("fpkm.RData")
 ```
@@ -633,12 +634,15 @@ corrplot(res_corr$r, p.mat = res_corr_mtest[[1]], sig.level = 0.05, order="hclus
 dev.off()
 ```
 
+
 ### number of expressed genes
 ```{r number of expressed genes}
-identified_transcripts_per_sample <- apply(fpkm_all, 2, function(x) length(which(x>0)))
+# number of genes with FPKM value above 0, per sample (column:2)
+identified_transcripts_per_sample <- apply(fpkm_genes, 2, function(x) length(which(x>0)))
 summary(identified_transcripts_per_sample)
 
-high_conf_transcripts_per_sample <- apply(fpkm_all, 2, function(x) length(which(x>1)))
+# number of genes with FPKM value above 1, per sample (column:2)
+high_conf_transcripts_per_sample <- apply(fpkm_genes, 2, function(x) length(which(x>1)))
 summary(high_conf_transcripts_per_sample)
 high_conf_transcripts_per_sample[1]
 
@@ -646,11 +650,16 @@ write.table(cbind(identified_transcripts_per_sample,
                   high_conf_transcripts_per_sample), 
             "output/number_of_transcripts.txt", sep="\t")
 
-identified_transcripts_per_sample_idx <- apply(fpkm_all, 2, function(x) which(x>0))
-high_conf_transcripts_per_sample_idx <- apply(fpkm_all, 2, function(x) which(x>1))
+# indices of genes with FPKM above 0 or 1
+identified_transcripts_per_sample_idx <- apply(fpkm_genes, 2, function(x) which(x>0))
+high_conf_transcripts_per_sample_idx <- apply(fpkm_genes, 2, function(x) which(x>1))
 length(high_conf_transcripts_per_sample_idx$t01_A_c)
 length(high_conf_transcripts_per_sample_idx$t05_A_c)
+```
 
+
+### intersection of high conf transcripts per sample
+```{r intersection of high conf transcripts per sample}
 # intersect
 length(Reduce(intersect, identified_transcripts_per_sample_idx))
 # 19703 --> number of commonly identified genes among all samples
@@ -698,11 +707,11 @@ saturna <- intersect(greenhouse_s, field_s)
 high_conf_transcripts_per_sample_intersect <- list(field_a_c, field_a_d, field_d_c, field_d_d, field_m_c, field_m_d, field_s_c, field_s_d, greenhouse_a_c, greenhouse_a_d, greenhouse_d_c, greenhouse_d_d, greenhouse_m_c, greenhouse_m_d, greenhouse_s_c, greenhouse_s_d)
 
 
-
 barplot(as.numeric(lapply(high_conf_transcripts_per_sample_intersect, length)), col=cols_cultivar_treatment)
 
 field_all <- Reduce(intersect, high_conf_transcripts_per_sample_idx[c(1:8,33:48)])
 greenhouse_all <- Reduce(intersect, high_conf_transcripts_per_sample_idx[c(9:32)])
+
 length(intersect(greenhouse_all, field_all))
 # 14211
 
@@ -718,7 +727,10 @@ grid.draw(venn.plot)
 ```
 
 
-```{r venn diagram of specific genes}
+
+## venn diagram of specific genes
+### venn plot all cultivars field
+```{r venn plot all cultivars field}
 w=list(
   "Alegria" = field_a,
   "Desiree" = field_d,
@@ -727,7 +739,7 @@ w=list(
 
 venn.plot <- venn.diagram(
   x = w,  
-  #filename = "figures/all_field_venn_all_cultivars.png",
+  #filename = "figures/venn_all_cultivars_field.png",
   filename=NULL,
   col = "black",
   fill = c("goldenrod1", "dodgerblue2", "darkorange2", "cyan3"), #category colors  
@@ -738,19 +750,24 @@ venn.plot <- venn.diagram(
   cex=1.5, 
   #cat.dist=0.25, 
   scaled=FALSE)
+
 dev.off()
 grid.draw(venn.plot)
+```
 
+
+
+### venn plot all cultivars greenhouse
+```{r venn plot all cultivars greenhouse}
 w=list(
   "Alegria" = greenhouse_a,
   "Desiree" = greenhouse_d,
   "Milva" = greenhouse_m,
   "Saturna" = greenhouse_s)
 
-
 venn.plot <- venn.diagram(
   x = w,  
-  #filename = "figures/all_field_venn_all_cultivars.png",
+  #filename = "figures/venn_all_cultivars_greenhouse.png",
   filename=NULL,
   col = "black",
   fill = c("goldenrod1", "dodgerblue2", "darkorange2", "cyan3"), #category colors  
@@ -761,18 +778,24 @@ venn.plot <- venn.diagram(
   cex=1.5, 
   #cat.dist=0.25, 
   scaled=FALSE)
+
 dev.off()
 grid.draw(venn.plot)
+```
 
 
+
+### venn plot all cultivars
+```{r venn plot all cultivars}
 w=list(
   "Alegria" = alegria,
   "Desiree" = desiree,
   "Milva" = milva,
   "Saturna" = saturna)
+
 venn.plot <- venn.diagram(
   x = w,  
-  #filename = "figures/all_field_venn_all_cultivars.png",
+  #filename = "figures/venn_all_cultivars.png",
   filename=NULL,
   col = "black",
   fill = c("goldenrod1", "dodgerblue2", "darkorange2", "cyan3"), #category colors  
@@ -783,9 +806,11 @@ venn.plot <- venn.diagram(
   cex=1.5, 
   #cat.dist=0.25, 
   scaled=FALSE)
+
 dev.off()
 grid.draw(venn.plot)
 ```
+
 
 
 ### specifically expressed genes (field)
@@ -805,6 +830,7 @@ dim(fpkm_all)
 fpkm_all_min <- apply(fpkm_all, 1, min) 
 length(which(fpkm_all_min>1))
 # 14211
+
 head(which(fpkm_all_min>1))
 fpkm_all[115,]
 
