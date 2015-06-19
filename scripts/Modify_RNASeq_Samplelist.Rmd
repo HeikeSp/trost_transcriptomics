@@ -13,7 +13,7 @@ library(pander)
 panderOptions('table.split.table', 200)
 
 # set options for knitr
-opts_knit$set(root.dir = 'D:/work/repos/trost_transcriptomics/')
+opts_knit$set(root.dir = '../')
 ```
 
 ### Load samplelist

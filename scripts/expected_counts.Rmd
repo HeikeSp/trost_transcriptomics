@@ -23,7 +23,7 @@ library(VennDiagram)
 
 # set options for knitr
 opts_chunk$set(fig.width=5, fig.height=5)
-opts_knit$set(root.dir = 'D:/work/repos/trost_transcriptomics/')
+opts_knit$set(root.dir = '../')
 
 # load workspace
 #load("exp_counts.RData")
