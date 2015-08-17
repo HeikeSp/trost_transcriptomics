@@ -1,0 +1,250 @@
+---
+title: "WGCNA: Weighted Correlation Network Analysis"
+author: "Heike Sprenger"
+date: "Tuesday, July 21, 2015"
+output:
+  html_document:
+    highlight: tango
+    number_section: yes
+    theme: cerulean
+    toc: yes
+  pdf_document:
+    toc: yes
+---
+
+# Set working directory
+```{r set working directory}
+getwd()
+#setwd("~/work/repos/trost_transcriptomics")
+```
+
+[solution for issue with working directory and knitr](https://github.com/yihui/knitr/issues/277)
+
+# Load workspace, packages and scripts
+```{r load workspace, message=FALSE}
+#load("WGCNA.RData")
+
+# load packages
+library(pander)
+library(knitr)
+library(DESeq2)
+library(WGCNA)
+
+# set options for pander
+panderOptions('table.split.table', 200)
+
+# set options for knitr
+opts_chunk$set(fig.width=5, fig.height=5, cache=FALSE, highlight = TRUE, fig.show="asis")
+opts_knit$set(root.dir = '../')
+```
+
+
+# source functions
+```{r source functions}
+source("../libpurzel/func_cv.R")
+```
+
+
+# Load rld table
+The function ``rlog``, stands for regularized log, transforming the original count data to the log2 scale by fitting a model with a term for each sample and a prior distribution on the coefficients which is estimated from the data. This is the same kind of shrinkage (sometimes referred to as regularization, or moderation) of log fold changes used by the ``DESeq`` and ``nbinomWaldTest``.
+```{r load rld table}
+rld <- read.table("output/deseq2_rld_all_samples.txt", header=T, sep="\t")
+head(rld)
+```
+
+
+# Load samplelist
+```{r load samplist}
+samplelist_ordered <- read.table("output/samplelist_modified.txt", sep="\t", header=T)
+head(samplelist_ordered)
+```
+
+
+# Calculate CV per gene
+```{r calculate CV per gene}
+res_cv <- apply(rld, 1, func_CV)
+summary(res_cv)
+hist(res_cv, breaks=100000, col="grey", xlim=c(0,80))
+length(which(res_cv<1))
+res_cv[which(res_cv<1)]
+
+mean(rld[1,])
+mean(as.vector(rld["PGSC0003DMG400001537",]))
+```
+
+
+# WGCNA steps
+## Options for WGCNA
+```{r options for WGCNA}
+# The following setting is important, do not omit.
+options(stringsAsFactors = FALSE)
+enableWGCNAThreads()
+```
+
+
+## Transpose the expression data for further analysis
+```{r transpose the expression data for further analysis}
+datExpr0 <- as.data.frame(t (rld))
+rownames(datExpr0) <- samplelist_ordered$sample_name
+```
+
+
+## Checking data for excessive missing values and identification of outlier samples
+We first check for genes and samples with too many missing values:
+```{r check}
+gsg = goodSamplesGenes(datExpr0, verbose = 3);
+gsg$allOK
+```
+
+If the last statement returns TRUE, all genes have passed the cuts. If not, we remove the offending genes and samples from the data...
+
+
+## Cluster samples
+Next we cluster the samples (in contrast to clustering genes that will come later) to see if there are any obvious outliers.
+```{r cluster samples}
+sampleTree <- hclust(dist(datExpr0), method = "average");
+# Plot the sample tree: Open a graphic output window of size 12 by 9 inches
+# The user should change the dimensions if the window is too large or too small.
+#sizeGrWindow(12,9)
+#pdf(file = "Plots/sampleClustering.pdf", width = 12, height = 9);
+par(cex = 0.6);
+par(mar = c(0,4,2,0))
+plot(sampleTree, main = "Sample clustering to detect outliers", 
+     sub="", xlab="", cex.lab = 1.5, 
+     cex.axis = 1.5, cex.main = 2)
+
+
+datExpr <- datExpr0[, 1:6000]
+```
+
+
+# Step-by-step construction of the gene network and identification of modules
+## Step-by-step network construction and module detection
+### Choosing the soft-thresholding power: analysis of network topology
+```{r Choosing the soft-thresholding power: analysis of network topology}
+powers = c(c(1:10), seq(from = 12, to=20, by=2))
+# Call the network topology analysis function
+sft = pickSoftThreshold(datExpr, powerVector = powers, verbose = 5, blockSize = 3000)
+# Plot the results:
+#sizeGrWindow(9, 5)
+par(mfrow = c(1,2));
+cex1 = 0.9;
+# Scale-free topology fit index as a function of the soft-thresholding power
+plot(sft$fitIndices[,1], -sign(sft$fitIndices[,3])*sft$fitIndices[,2],
+     xlab="Soft Threshold (power)",ylab="Scale Free Topology Model Fit,signed R^2",type="n",
+     main = paste("Scale independence"));
+text(sft$fitIndices[,1], -sign(sft$fitIndices[,3])*sft$fitIndices[,2],
+     labels=powers,cex=cex1,col="red");
+# this line corresponds to using an R^2 cut-off of h
+abline(h=0.90,col="red")
+# Mean connectivity as a function of the soft-thresholding power
+plot(sft$fitIndices[,1], sft$fitIndices[,5],
+     xlab="Soft Threshold (power)",ylab="Mean Connectivity", type="n",
+     main = paste("Mean connectivity"))
+text(sft$fitIndices[,1], sft$fitIndices[,5], labels=powers, cex=cex1,col="red")
+```
+
+
+### One-step network construction and module detection
+```{r One-step network construction and module detection}
+net = blockwiseModules(datExpr, power = 10, 
+                       TOMType = "unsigned", minModuleSize = 30,
+                       reassignThreshold = 0, mergeCutHeight = 0.25,
+                       numericLabels = TRUE, pamRespectsDendro = FALSE,
+                       saveTOMs = TRUE,
+                       saveTOMFileBase = "RNASeqWGCNA", 
+                       verbose = 3)
+
+table(net$colors)
+```
+
+
+#### Hierarchical clustering dendrogram (tree)
+```{r hierarchical clustering dendrogram (tree)}
+# open a graphics window
+#sizeGrWindow(12, 9)
+# Convert labels to colors for plotting
+mergedColors = labels2colors(net$colors)
+# Plot the dendrogram and the module colors underneath
+plotDendroAndColors(net$dendrograms[[1]], 
+                    mergedColors[net$blockGenes[[1]]],
+                    "Module colors",
+                    dendroLabels = FALSE, hang = 0.03,
+                    addGuide = TRUE, guideHang = 0.05)
+
+# We now save the module assignment and module eigengene information necessary for subsequent analysis.
+moduleLabels = net$colors
+moduleColors = labels2colors(net$colors)
+MEs = net$MEs
+geneTree = net$dendrograms[[1]]
+```
+
+
+
+### Block-wise network construction and module detection
+```{r Block-wise network construction and module detection}
+bwnet = blockwiseModules(datExpr, power = 10, maxBlockSize = 3000,
+                       TOMType = "unsigned", minModuleSize = 30,
+                       reassignThreshold = 0, mergeCutHeight = 0.25,
+                       numericLabels = TRUE, pamRespectsDendro = FALSE,
+                       saveTOMs = TRUE,
+                       saveTOMFileBase = "RNASeqWGCNAbw", 
+                       verbose = 3)
+
+table(bwnet$colors)
+
+# Relabel blockwise modules
+bwLabels = matchLabels(bwnet$colors, moduleLabels);
+# Convert labels to colors for plotting
+bwModuleColors = labels2colors(bwLabels)
+
+table(bwLabels)
+```
+
+
+#### Hierarchical clustering dendrograms (trees) for each block
+Clustering dendrograms of genes, with dissimilarity based on topological overlap, together with assigned module colors. There is one gene dendrogram per block.
+```{r hierarchical clustering dendrograms (trees) for each block}
+# open a graphics window
+#sizeGrWindow(6,6)
+# Plot the dendrogram and the module colors underneath for block 1
+plotDendroAndColors(bwnet$dendrograms[[1]], 
+                    bwModuleColors[bwnet$blockGenes[[1]]],
+                    "Module colors", 
+                    main = "Gene dendrogram and module colors in block 1",
+                    dendroLabels = FALSE, hang = 0.03,
+                    addGuide = TRUE, guideHang = 0.05)
+
+# Plot the dendrogram and the module colors underneath for block 2
+plotDendroAndColors(bwnet$dendrograms[[2]], 
+                    bwModuleColors[bwnet$blockGenes[[2]]],
+                    "Module colors", 
+                    main = "Gene dendrogram and module colors in block 2",
+                    dendroLabels = FALSE, hang = 0.03,
+                    addGuide = TRUE, guideHang = 0.05)
+```
+
+
+### Comparing the single block and block-wise network analysis
+```{r Comparing the single block and block-wise network analysis}
+# sizeGrWindow(12,9)
+# plotDendroAndColors(geneTree, 
+#                     cbind(moduleColors, bwModuleColors),
+#                     c("Single block", "2 blocks"),
+#                     main = "Single block gene dendrogram and module colors",
+#                     dendroLabels = FALSE, hang = 0.03,
+#                     addGuide = TRUE, guideHang = 0.05)
+# 
+# singleBlockMEs <- moduleEigengenes(datExpr, moduleColors)$eigengenes
+# blockwiseMEs <- moduleEigengenes(datExpr, bwModuleColors)$eigengenes
+# 
+# single2blockwise <- match(names(singleBlockMEs), names(blockwiseMEs))
+# signif(diag(cor(blockwiseMEs[, single2blockwise], singleBlockMEs)), 3)
+```
+
+
+# save workspace
+```{r save workspace}
+save.image("WGCNA.RData")
+```
+
