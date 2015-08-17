@@ -1,0 +1,237 @@
+---
+title: "PageMan Heatmaps"
+author: "Heike Sprenger"
+date: "Tuesday, Aug 13, 2015"
+output:
+  html_document:
+    highlight: tango
+    number_section: yes
+    theme: cerulean
+    toc: yes
+    toc_depth: 4
+---
+
+# Set working directory  
+```{r set working directory}
+#getwd()
+#setwd("D:/work/repos/trost_transcriptomics")
+#setwd("~/work/repos/trost_transcriptomics")
+```
+
+[solution for issue with working directory and knitr](https://github.com/yihui/knitr/issues/277)
+
+# Load workspace, packages and scripts
+```{r load workspace, message=FALSE}
+# load packages
+library(knitr)
+library(pander)
+library(gplots)
+library(RColorBrewer)
+
+# set options for pander
+panderOptions('table.split.table', 200)
+
+# set options for knitr
+opts_chunk$set(fig.width=5, fig.height=5, cache=FALSE, highlight = TRUE, fig.show="asis")
+opts_knit$set(root.dir = '../')
+
+# load workspace
+#load("pageman_plot.RData")
+```
+
+
+# Source R functions
+```{r source R functions}
+source("../libpurzel/func_pageman_plot.R")
+```
+
+
+# Load results of PageMan Analysis
+```{r load results of PageMan analysis}
+pageman_greenhouse <- read.table("pageman/greenhouse_tolerance.pmd", sep="\t", skip=1, quote="")
+pageman_field <- read.table("pageman/field_tolerance.pmd", sep="\t", skip=1, quote="")
+pageman_tolerance <- read.table("pageman/field_greenhouse_tol_vs_sens.pmd", sep="\t", skip=1, quote="")
+
+head(pageman_tolerance)
+```
+
+
+# Thresholds for PageMan plots}
+```{r thresholds for PageMan plots}
+pval_threshold_weak = 0.05
+pval_threshold_strict = 0.001
+
+zscore_threshold_weak = 1.959964
+zscore_threshold_strict = 3.3
+
+# get respective p-value from z-score
+2*pnorm(-abs(zscore_threshold_weak))
+2*pnorm(-abs(zscore_threshold_strict))
+
+# get respective z-score from p-value (normal distribution)
+abs(qnorm(pval_threshold_weak/2))
+abs(qnorm(pval_threshold_strict/2))
+```
+
+
+# Define subset of significant enrichment/depletion for PageMan plot
+```{r define subset of significant enrichment/depletion for PageMan plot}
+# Pagman plot for DGE (control vs. stress) in tolerant and sensitive cultivars separately
+# strict p-value of 0.001 (corresponding to z-score of 3.3)
+# greenhouse
+pageman_greenhouse_sig_3_sel <- func_pageman_plot(pageman_greenhouse, threshold = 3.3, show_all = FALSE)
+pageman_greenhouse_sig_3_sel_all <- func_pageman_plot(pageman_greenhouse, threshold = 3.3, show_all = TRUE)
+# field
+pageman_field_sig_3_sel <- func_pageman_plot(pageman_field, threshold = 3.3, show_all = FALSE)
+pageman_field_sig_3_sel_all <- func_pageman_plot(pageman_field, threshold = 3.3, show_all = TRUE)
+
+# weak p-value of 0.05 (corresponding to z-score of 1.96)
+pageman_greenhouse_sig_2_sel <- func_pageman_plot(pageman_greenhouse, threshold = 1.959964, show_all = FALSE)
+pageman_field_sig_2_sel <- func_pageman_plot(pageman_field, threshold = 1.959964)
+
+
+# Pageman plot for DGE comparing tolerant vs. sensitive
+# use the other function because different data structure!
+pageman_tolerance_sig_3_sel <- func_pageman_plot2(pageman_tolerance, threshold = 3.3)
+# pageman_tolerance_sig_2_575_sel <- func_pageman_plot2(pageman_tolerance, threshold = 2.575)
+```
+
+# Heatmaps
+## Heatmap with dendrogram greenhouse p<0.001 (z-score of 3.3)
+```{r heatmap_with_dendrogram_greenhouse_p_smaller_0.001, fig.width=12, fig.height=15, fig.show='asis'}
+pdf("figures/pageman_greenhouse_sel_dendrogram.pdf", width=12, height=15)
+
+func_pageman_heatmap(pageman_data = pageman_greenhouse_sig_3_sel[,c(3:7)],
+                     bin_names = pageman_greenhouse_sig_3_sel$bin_name,
+                     col_breaks_greenhouse = TRUE,
+                     show_col_dend = TRUE, 
+                     margins_values = c(8,50) )
+dev.off()
+```
+
+
+## Heatmap without dendrogram greenhouse p<0.001 (z-score of 3.3)
+```{r heatmap_without_dendrogram_greenhouse_p_smaller_0.001, fig.width=12, fig.height=15, fig.show='asis'}
+
+func_pageman_heatmap(pageman_data = pageman_greenhouse_sig_3_sel[,c(3:7)],
+                     bin_names = pageman_greenhouse_sig_3_sel$bin_name,
+                     col_breaks_greenhouse = TRUE,
+                     show_col_dend = FALSE, 
+                     margins_values = c(8,50) )
+
+pdf("figures/pageman_greenhouse_sel.pdf", width=12, height=15)
+
+func_pageman_heatmap(pageman_data = pageman_greenhouse_sig_3_sel[,c(3:7)],
+                     bin_names = pageman_greenhouse_sig_3_sel$bin_name,
+                     col_breaks_greenhouse = TRUE,
+                     show_col_dend = FALSE, 
+                     margins_values = c(8,50) )
+dev.off()
+```
+
+
+## Heatmap without dendrogram greenhouse p<0.001 ALL
+```{r heatmap without dendrogram greenhouse p<0.001 ALL}
+pdf("figures/pageman_greenhouse_sel_ALL.pdf", width=12, height=15)
+
+func_pageman_heatmap(pageman_data = pageman_greenhouse_sig_3_sel_all[,c(3:7)],
+                     bin_names = pageman_greenhouse_sig_3_sel_all$bin_name,
+                     col_breaks_greenhouse = TRUE,
+                     show_col_dend = FALSE, 
+                     margins_values = c(8,50) )
+dev.off()
+```
+
+
+## Heatmap without dendrogram greenhouse p<0.05
+```{r heatmap without dendrogram greenhouse p<0.05}
+pdf("figures/pageman_greenhouse_sel_more.pdf", width=12, height=20)
+
+func_pageman_heatmap(pageman_data = pageman_greenhouse_sig_2_sel[,c(3:7)],
+                     bin_names = pageman_greenhouse_sig_2_sel$bin_name,
+                     col_breaks_greenhouse = TRUE,
+                     show_col_dend = FALSE, 
+                     margins_values = c(8,50) )
+dev.off()
+```
+
+
+## Heatmap with dendrogram field p<0.001
+```{r heatmap with dendrogram field p<0.001}
+pdf("figures/pageman_field_sel_dendrogram.pdf", width=10, height=10)
+
+func_pageman_heatmap(pageman_data = pageman_field_sig_3_sel[,c(3:7)],
+                     bin_names = pageman_field_sig_3_sel$bin_name,
+                     col_breaks_greenhouse = FALSE,
+                     show_col_dend = TRUE, 
+                     margins_values = c(8,43),
+                     lwid_input = c(1, 5),
+                     lhei_input = c(0.6, 3.3))
+dev.off()
+```
+
+
+## Heatmap without dendrogram field p<0.001
+```{r heatmap_without_dendrogram_field_p_smaller_0.001, fig.width=11, fig.height=10, fig.show='asis'}
+func_pageman_heatmap(pageman_data = pageman_field_sig_3_sel[,c(3:7)],
+                     bin_names = pageman_field_sig_3_sel$bin_name,
+                     col_breaks_greenhouse = FALSE,
+                     show_col_dend = FALSE, 
+                     margins_values = c(8,43),
+                     lwid_input = c(1, 5),
+                     lhei_input = c(0.6, 3.3))
+
+pdf("figures/pageman_field_sel.pdf", width=11, height=10)
+
+func_pageman_heatmap(pageman_data = pageman_field_sig_3_sel[,c(3:7)],
+                     bin_names = pageman_field_sig_3_sel$bin_name,
+                     col_breaks_greenhouse = FALSE,
+                     show_col_dend = FALSE, 
+                     margins_values = c(8,43),
+                     lwid_input = c(1, 5),
+                     lhei_input = c(0.6, 3.3))
+dev.off()
+```
+
+
+## Heatmap without dendrogram field p<0.001 ALL
+```{r heatmap without dendrogram field p<0.001 ALL}
+pdf("figures/pageman_field_sel_ALL.pdf", width=11, height=10)
+
+func_pageman_heatmap(pageman_data = pageman_field_sig_3_sel_all[,c(3:7)],
+                     bin_names = pageman_field_sig_3_sel_all$bin_name,
+                     col_breaks_greenhouse = FALSE,
+                     show_col_dend = FALSE, 
+                     margins_values = c(8,43),
+                     lwid_input = c(1, 5),
+                     lhei_input = c(0.6, 3.3))
+dev.off()
+```
+
+
+## heatmap without dendrogram tol vs. sens p<0.001
+```{r heatmap_without_dendrogram_tol_vs_sens_p_smaller_0.001, fig.width=12, fig.height=14, fig.show='asis'}
+func_pageman_heatmap(pageman_data = pageman_tolerance_sig_3_sel[,c(3:11)],
+                     bin_names = pageman_tolerance_sig_3_sel$bin_name,
+                     col_breaks_greenhouse = TRUE,
+                     show_col_dend = FALSE, 
+                     margins_values = c(10,50),
+                     srtCol_value = 270)
+
+pdf("figures/pageman_tolerance_sel.pdf", width=12, height=14)
+
+func_pageman_heatmap(pageman_data = pageman_tolerance_sig_3_sel[,c(3:11)],
+                     bin_names = pageman_tolerance_sig_3_sel$bin_name,
+                     col_breaks_greenhouse = TRUE,
+                     show_col_dend = FALSE, 
+                     margins_values = c(10,50),
+                     srtCol_value = 270)
+dev.off()
+```
+
+
+# save workspace
+```{r save workspace}
+save.image("pageman_plot.RData")
+```
+
