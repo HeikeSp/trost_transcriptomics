@@ -1,0 +1,208 @@
+---
+title: "InterPro Enrichment"
+author: "Heike Sprenger"
+date: "27. Juli 2015"
+output: html_document
+---
+
+# Set working directory
+```{r set working directory}
+getwd()
+#setwd("~/work/repos/trost_transcriptomics")
+```
+
+# Load packages and workspace
+```{r load packages and workspace}
+#load("InterPro_Enrichtment.RData")
+
+# load packages
+library(biomaRt)
+library(pander)
+library(knitr)
+library(topGO)
+library(ALL)
+library(package = affyLib, character.only = TRUE)
+library(mgsa)
+library(reshape)
+library(dplyr)
+
+# set options for pander
+panderOptions('table.split.table', 200)
+
+# set options for knitr
+opts_chunk$set(fig.width=5, fig.height=5, cache=FALSE, highlight = TRUE, fig.show="asis")
+opts_knit$set(root.dir = '../')
+```
+
+# Read top20 transcript marker
+```{r read top20 transcript marker}
+top20_transcript_marker <- read.table("data/top20_transcript_marker.txt", header = T, sep = "\t")
+
+assoc_pgsc <- read.table("data/PGSC_DM_v3.4_g2t2c2p2func_edit.txt")
+colnames(assoc_pgsc) <- c("pgsc_dmg", "pgsc_dmt", "pgsc_dmc", "pgsc_dmp", "func")
+```
+
+# Define biomaRt parameter
+```{r define biomaRt parameter}
+# listMarts()
+
+plants_mart_26 <- useMart("plants_mart_26")
+
+# listDatasets(plants_mart_26)
+
+stu_ensembl <- useMart( "plants_mart_26", dataset = "stuberosum_eg_gene" )
+
+attributes <- listAttributes(stu_ensembl)
+# listFilters(stu_ensembl)
+```
+
+
+# Get biomaRt data
+```{r get biomaRt data}
+# only for top20 marker
+genemap_top20 <- getBM( attributes = c("ensembl_gene_id", "pgsc", "interpro_id", 
+                                       "interpro_description", "description"), 
+                        filters = "ensembl_gene_id",
+                        values = top20_transcript_marker$PGSC.DMG.ID,
+                        mart = stu_ensembl )
+
+genemap_top20 <- filter(genemap_top20[,-1], interpro_id != "") # remove rows where interpro_id is empty
+
+write.table(genemap_top20, "output/genemap_top20.txt", sep="\t", row.names = F)
+head(genemap_top20)
+
+cast(genemap_top20, pgsc~interpro_id)
+
+# for all genes
+genemap_all <- getBM( attributes = c("ensembl_gene_id", "pgsc", "interpro_id", 
+                                       "interpro_description", "description"), 
+                        filters = "ensembl_gene_id",
+                        values = assoc_pgsc$pgsc_dmg,
+                        mart = stu_ensembl )
+```
+
+```{r count InterPro IDs}
+table(genemap_top20$interpro_id)
+table(genemap_top20$interpro_description)
+table(genemap_top20$interpro_description, genemap_top20$interpro_id)
+
+# IPR001611: Leucine-rich repeat
+length(which(genemap_top20$interpro_id=="IPR001611")) #8
+length(which(genemap_all$interpro_id=="IPR001611")) #659
+
+71/78838
+8/659
+
+# or???
+(8/71) / (659/78838)
+
+# IPR025875: Leucine-rich repeats (2 copies)
+length(which(genemap_top20$interpro_id=="IPR025875")) #5
+length(which(genemap_all$interpro_id=="IPR025875")) #190
+
+5/190
+# or???
+(5/71) / (190/78838)
+
+
+# IPR002182: NB-ARC
+length(which(genemap_top20$interpro_id=="IPR002182")) #4
+length(which(genemap_all$interpro_id=="IPR002182")) #448
+
+4/448
+# or???
+(4/71) / (448/78838)
+```
+
+# Get GO terms
+```{r get GO terms}
+genemap_top20_GO <- getBM( attributes = c("ensembl_gene_id", "pgsc", 
+                                          "go_name_1006", "go_accession", "go_definition_1006", "go_namespace_1003",
+                                          "description"), 
+                        filters = "ensembl_gene_id",
+                        values = top20_transcript_marker$PGSC.DMG.ID,
+                        mart = stu_ensembl )
+
+genemap_all_GO <- getBM( attributes = c("ensembl_gene_id", "pgsc", 
+                                          "go_name_1006", "go_accession", "go_definition_1006", "go_namespace_1003",
+                                          "description"), 
+                        filters = "ensembl_gene_id",
+                        values = assoc_pgsc$pgsc_dmg,
+                        mart = stu_ensembl )
+```
+
+# Count GO terms
+```{r count GO terms}
+table(genemap_top20_GO$go_accession)
+
+# IPR001611: Leucine-rich repeat
+length(which(genemap_top20_GO$go_accession=="GO:0005515")) #10
+length(which(genemap_all_GO$go_accession=="GO:0005515")) #3952
+
+10/3952
+77/109727
+```
+
+# Use topGO
+```{r use topGO}
+data(ALL)
+data(geneList)
+
+affyLib <- paste(annotation(ALL), "db", sep = ".")
+sum(topDiffGenes(geneList))
+
+sampleGOdata <- new("topGOdata",
+description = "Simple session", ontology = "BP",
+allGenes = geneList, geneSel = topDiffGenes,
+nodeSize = 10,
+annot = annFUN.db, affyLib = affyLib)
+
+sampleGOdata
+```
+
+# Fisher's exact test
+```{r fisher's exact test}
+
+71/78838
+8/659
+71-8
+78838-659
+
+LRR_matrix <- matrix(c(8, 659, 63, 78179), nrow = 2)
+dimnames(LRR_matrix) <-  list(c("top20", "all"), c("LRR", "noLRR")) # Namen zuweisen
+
+fisher.test(LRR_matrix, alternative = "greater")
+```
+
+# mgsa: 
+```{r mgsa}
+browseVignettes("mgsa")
+
+data("example")
+example_go
+example_o
+
+set.seed(0)
+fit = mgsa(example_o, example_go)
+fit
+plot(fit)
+
+res = setsResults(fit)
+subset(res, estimate > 0.5)
+
+readGAF(system.file("example_files/gene_association_head.sgd",
+                    package="mgsa"))
+
+mgsa( c("A", "B"), list(set1=LETTERS[1:3], set2=LETTERS[2:5]) ) 
+
+myset = new( "MgsaSets", sets=list(set1=LETTERS[1:3], set2=LETTERS[2:5]) )
+mgsa(c("A", "B"), myset)
+mgsa(c("B", "C"), myset)
+```
+
+
+# Save workspace
+```{r save workspace}
+save.image("InterPro_Enrichtment.RData")
+```
+
