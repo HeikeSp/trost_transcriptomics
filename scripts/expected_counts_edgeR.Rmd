@@ -1015,11 +1015,20 @@ write.table(res_field_tolerant_pageman,
 write.table(res_field_sensitive_pageman, 
             "output/pageman_field_sensitive_all.txt", 
             sep="\t", row.names=F, quote=F)
+
+# pageman_greenhouse_tolerant_sensitive <- cbind(res_greenhouse_tolerant_pageman, 
+#                                                res_greenhouse_sensitive_pageman[,-1])
+# colnames(pageman_greenhouse_tolerant_sensitive)[2:5] <- c("logFC_tol", "dir_tol", "logFC_sens", "dir_sens")
+# head(pageman_greenhouse_tolerant_sensitive)
+# 
+# write.table(pageman_greenhouse_tolerant_sensitive, 
+#             "output/pageman_greenhouse_tolerant_sensitive_all.txt", 
+#             sep="\t", row.names=F, quote=F)
 ```
 
 
-#### merge Pageman res to MapMan bins field
-```{r merge Pageman res to MapMan bins field (control vs. stress)}
+#### merge significant Pageman res to MapMan bins field
+```{r merge significant Pageman res to MapMan bins field (control vs. stress)}
 # only significant DGE: dir must be -1 or +1 (not 0)!
 # tolerant
 res_field_tolerant_pageman_mapman <- merge(
@@ -1034,6 +1043,14 @@ res_field_sensitive_pageman_mapman <- merge(
 #                                           by.x = "pgsc_dmp", by.y = "IDENTIFIER")
 #write.table(res_field_sensitive_pageman_mapman, "../output/res_field_sensitive_pageman_mapman.txt", 
 #            sep="\t", row.names=F, quote=F)
+
+write.table(res_field_tolerant_pageman_mapman,
+            "output/pageman_field_tolerant_sig_mapman.txt",
+            sep="\t", row.names=F, quote=F)
+
+write.table(res_field_sensitive_pageman_mapman,
+            "output/pageman_field_sensitive_sig_mapman.txt",
+            sep="\t", row.names=F, quote=F)
 
 table(droplevels(res_field_sensitive_pageman_mapman$BIN))
 table(droplevels(res_field_tolerant_pageman_mapman$BIN))
@@ -1060,8 +1077,8 @@ head(res_field_sensitive_pageman_mapman_ordered)
 ```
 
 
-#### merge Pageman res to MapMan bins greenhouse
-```{r merge Pageman res to MapMan bins greenhouse (control vs. stress)}
+#### merge significant Pageman res to MapMan bins greenhouse
+```{r merge significant Pageman res to MapMan bins greenhouse (control vs. stress)}
 # only significant DGE: dir must be -1 or +1 (not 0)!
 # tolerant
 res_greenhouse_tolerant_pageman_mapman <- merge(
@@ -1072,6 +1089,15 @@ res_greenhouse_tolerant_pageman_mapman <- merge(
 res_greenhouse_sensitive_pageman_mapman <- merge(
   res_greenhouse_sensitive_pageman[which(res_greenhouse_sensitive_pageman$dir%in%c(-1,1)),],
   assoc_mapman, by.x = "pgsc_dmp", by.y = "IDENTIFIER")
+
+write.table(res_greenhouse_tolerant_pageman_mapman,
+            "output/pageman_greenhouse_tolerant_sig_mapman.txt",
+            sep="\t", row.names=F, quote=F)
+
+write.table(res_greenhouse_sensitive_pageman_mapman,
+            "output/pageman_greenhouse_sensitive_sig_mapman.txt",
+            sep="\t", row.names=F, quote=F)
+
 
 table(droplevels(res_greenhouse_sensitive_pageman_mapman$BIN))
 table(droplevels(res_greenhouse_tolerant_pageman_mapman$BIN))
