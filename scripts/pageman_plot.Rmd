@@ -56,20 +56,35 @@ head(pageman_tolerance)
 ```
 
 
+# Load further results of PageMan Analysis
+```{r load further results of PageMan analysis}
+pageman_greenhouse_1_0 <- read.table("pageman/greenhouse_tolerance_2015_08_26_1_0.pmd", sep="\t", skip=1, quote="")
+pageman_greenhouse_2_0 <- read.table("pageman/greenhouse_tolerance_2015_08_26_2_0.pmd", sep="\t", skip=1, quote="")
+pageman_greenhouse_3_0 <- read.table("pageman/greenhouse_tolerance_2015_08_26_3_0.pmd", sep="\t", skip=1, quote="")
+pageman_greenhouse_3_3 <- read.table("pageman/greenhouse_tolerance_2015_08_26_3_3.pmd", sep="\t", skip=1, quote="")
+
+
+head(pageman_tolerance)
+```
+
 # Thresholds for PageMan plots}
 ```{r thresholds for PageMan plots}
 pval_threshold_weak = 0.05
+pval_threshold_intermed = 0.01
 pval_threshold_strict = 0.001
 
 zscore_threshold_weak = 1.959964
+zscore_threshold_intermed = 2.575829
 zscore_threshold_strict = 3.3
 
 # get respective p-value from z-score
 2*pnorm(-abs(zscore_threshold_weak))
+2*pnorm(-abs(zscore_threshold_intermed))
 2*pnorm(-abs(zscore_threshold_strict))
 
 # get respective z-score from p-value (normal distribution)
 abs(qnorm(pval_threshold_weak/2))
+abs(qnorm(pval_threshold_intermed/2))
 abs(qnorm(pval_threshold_strict/2))
 ```
 
@@ -227,6 +242,14 @@ func_pageman_heatmap(pageman_data = pageman_tolerance_sig_3_sel[,c(3:11)],
                      margins_values = c(10,50),
                      srtCol_value = 270)
 dev.off()
+```
+
+## compare different ORA cutoffs from PageMan
+```{r compare different ORA cutoffs from PageMan}
+pageman_greenhouse_1_0_sig_3_sel <- func_pageman_plot(pageman_greenhouse_1_0, threshold = 3.3, show_all = FALSE)
+pageman_greenhouse_2_0_sig_3_sel <- func_pageman_plot(pageman_greenhouse_2_0, threshold = 3.3, show_all = FALSE)
+pageman_greenhouse_3_0_sig_3_sel <- func_pageman_plot(pageman_greenhouse_3_0, threshold = 3.3, show_all = FALSE)
+pageman_greenhouse_3_3_sig_3_sel <- func_pageman_plot(pageman_greenhouse_3_3, threshold = 3.3, show_all = FALSE)
 ```
 
 
