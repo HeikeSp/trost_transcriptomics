@@ -61,6 +61,7 @@ source("../libpurzel/func_pageman_res.R")
 source("../libpurzel/func_merge_sig_res_mapman.R")
 source("../libpurzel/func_edgeR_top.R")
 source("../libpurzel/func_intersecting_dge.R")
+source("../libpurzel/func_final_DGE_list.R")
 ```
 
 
@@ -517,38 +518,6 @@ write.table(res_greenhouse_stress_pageman, "output/pageman_greenhouse_stress_all
 write.table(res_field_control_pageman, "output/pageman_field_control_all.txt", 
             sep="\t", row.names=F, quote=F)
 write.table(res_field_stress_pageman, "output/pageman_field_stress_all.txt", 
-            sep="\t", row.names=F, quote=F)
-```
-
-
-#### Save tables for PageMan: tolerant vs. sensitive
-```{r PageMan tolerant vs. sensitive}
-# merge to mapman bins
-# dir ==  1 --> tol > sens --> T
-# dir == -1 --> sens > tol --> S
-res_field_control_pageman_mapman_T <- merge(res_field_control_pageman[which(res_field_control_pageman$dir == 1),], 
-                                            assoc_mapman, by.x = "pgsc_dmp", by.y = "IDENTIFIER")
-res_field_control_pageman_mapman_S <- merge(res_field_control_pageman[which(res_field_control_pageman$dir == -1),], 
-                                            assoc_mapman, by.x = "pgsc_dmp", by.y = "IDENTIFIER")
-res_field_stress_pageman_mapman_T <- merge(res_field_stress_pageman[which(res_field_stress_pageman$dir == 1),], 
-                                            assoc_mapman, by.x = "pgsc_dmp", by.y = "IDENTIFIER")
-res_field_stress_pageman_mapman_S <- merge(res_field_stress_pageman[which(res_field_stress_pageman$dir == -1),], 
-                                            assoc_mapman, by.x = "pgsc_dmp", by.y = "IDENTIFIER")
-# greenhouse
-res_greenhouse_control_pageman_mapman_T <- merge(res_greenhouse_control_pageman[which(res_greenhouse_control_pageman$dir == 1),], 
-                                            assoc_mapman, by.x = "pgsc_dmp", by.y = "IDENTIFIER")
-res_greenhouse_control_pageman_mapman_S <- merge(res_greenhouse_control_pageman[which(res_greenhouse_control_pageman$dir == -1),], 
-                                            assoc_mapman, by.x = "pgsc_dmp", by.y = "IDENTIFIER")
-res_greenhouse_stress_pageman_mapman_T <- merge(res_greenhouse_stress_pageman[which(res_greenhouse_stress_pageman$dir == 1),], 
-                                            assoc_mapman, by.x = "pgsc_dmp", by.y = "IDENTIFIER")
-res_greenhouse_stress_pageman_mapman_S <- merge(res_greenhouse_stress_pageman[which(res_greenhouse_stress_pageman$dir == -1),], 
-                                            assoc_mapman, by.x = "pgsc_dmp", by.y = "IDENTIFIER")
-
-# res_field_control_pageman_mapman_T <- res_field_control_pageman_mapman_T[order(res_field_control_pageman_mapman_T$BINCODE),]
-# res_field_control_pageman_mapman_S <- res_field_control_pageman_mapman_S[order(res_field_control_pageman_mapman_S$BINCODE),]
-
-write.table(res_greenhouse_control_pageman_mapman_T,
-            "output/res_greenhouse_control_pageman_mapman_T.txt",
             sep="\t", row.names=F, quote=F)
 ```
 
@@ -1521,6 +1490,61 @@ write.table(res_field_tolerant_corto_up, "corto/corto_input_field_tolerant_up.tx
 write.table(res_field_tolerant_corto_down, "corto/corto_input_field_tolerant_down.txt", row.names=F, quote=F, sep="\t", col.names = F)
 write.table(res_field_sensitive_corto_up, "corto/corto_input_field_sensitive_up.txt", row.names=F, quote=F, sep="\t", col.names = F)
 write.table(res_field_sensitive_corto_down, "corto/corto_input_field_sensitive_down.txt", row.names=F, quote=F, sep="\t", col.names = F)
+```
+
+
+### Save final DGE list with IDs (DMP, DMG), logFC, FDR, PGSC function, dir, MapMan BinCode, MapMan BinName and MapMan Description
+#### Save final DGE list: tolerant vs. sensitive
+```{r save final DGE list tolerant vs. sensitive}
+
+# dir ==  1 --> tol > sens --> T
+final_greenhouse_control_T <- func_final_DGE_list(res = res_greenhouse_control, dir_value = 1)
+final_greenhouse_stress_T <- func_final_DGE_list(res = res_greenhouse_stress, dir_value = 1)
+final_field_control_T <- func_final_DGE_list(res = res_field_control, dir_value = 1)
+final_field_stress_T <- func_final_DGE_list(res = res_field_stress, dir_value = 1)
+
+write.table(final_greenhouse_control_T, "output/final_dge_greenhouse_control_T.txt", sep="\t", row.names=F, quote=F)
+write.table(final_greenhouse_stress_T, "output/final_dge_greenhouse_stress_T.txt", sep="\t", row.names=F, quote=F)
+write.table(final_field_control_T, "output/final_dge_field_control_T.txt", sep="\t", row.names=F, quote=F)
+write.table(final_field_stress_T, "output/final_dge_field_stress_T.txt", sep="\t", row.names=F, quote=F)
+
+# dir == -1 --> sens > tol --> S
+final_greenhouse_control_S <- func_final_DGE_list(res = res_greenhouse_control, dir_value = -1)
+final_greenhouse_stress_S <- func_final_DGE_list(res = res_greenhouse_stress, dir_value = -1)
+final_field_control_S <- func_final_DGE_list(res = res_field_control, dir_value = -1)
+final_field_stress_S <- func_final_DGE_list(res = res_field_stress, dir_value = -1)
+
+write.table(final_greenhouse_control_S, "output/final_dge_greenhouse_control_S.txt", sep="\t", row.names=F, quote=F)
+write.table(final_greenhouse_stress_S, "output/final_dge_greenhouse_stress_S.txt", sep="\t", row.names=F, quote=F)
+write.table(final_field_control_S, "output/final_dge_field_control_S.txt", sep="\t", row.names=F, quote=F)
+write.table(final_field_stress_S, "output/final_dge_field_stress_S.txt", sep="\t", row.names=F, quote=F)
+```
+
+
+#### Save final DGE list: control vs. stress
+```{r save final DGE list control vs. stress}
+
+# dir ==  1 --> stress > control --> up
+final_greenhouse_tolerant_up <- func_final_DGE_list(res = res_greenhouse_tolerant, dir_value = 1)
+final_greenhouse_sensitive_up <- func_final_DGE_list(res = res_greenhouse_sensitive, dir_value = 1)
+final_field_tolerant_up <- func_final_DGE_list(res = res_field_tolerant, dir_value = 1)
+final_field_sensitive_up <- func_final_DGE_list(res = res_field_sensitive, dir_value = 1)
+
+write.table(final_greenhouse_tolerant_up, "output/final_dge_greenhouse_tolerant_up.txt", sep="\t", row.names=F, quote=F)
+write.table(final_greenhouse_sensitive_up, "output/final_dge_greenhouse_sensitive_up.txt", sep="\t", row.names=F, quote=F)
+write.table(final_field_tolerant_up, "output/final_dge_field_tolerant_up.txt", sep="\t", row.names=F, quote=F)
+write.table(final_field_sensitive_up, "output/final_dge_field_sensitive_up.txt", sep="\t", row.names=F, quote=F)
+
+# dir == -1 --> control > stress --> down
+final_greenhouse_tolerant_down <- func_final_DGE_list(res = res_greenhouse_tolerant, dir_value = -1)
+final_greenhouse_sensitive_down <- func_final_DGE_list(res = res_greenhouse_sensitive, dir_value = -1)
+final_field_tolerant_down <- func_final_DGE_list(res = res_field_tolerant, dir_value = -1)
+final_field_sensitive_down <- func_final_DGE_list(res = res_field_sensitive, dir_value = -1)
+
+write.table(final_greenhouse_tolerant_down, "output/final_dge_greenhouse_tolerant_down.txt", sep="\t", row.names=F, quote=F)
+write.table(final_greenhouse_sensitive_down, "output/final_dge_greenhouse_sensitive_down.txt", sep="\t", row.names=F, quote=F)
+write.table(final_field_tolerant_down, "output/final_dge_field_tolerant_down.txt", sep="\t", row.names=F, quote=F)
+write.table(final_field_sensitive_down, "output/final_dge_field_sensitive_down.txt", sep="\t", row.names=F, quote=F)
 ```
 
 # save workspace
