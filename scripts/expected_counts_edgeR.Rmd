@@ -62,6 +62,10 @@ source("../libpurzel/func_merge_sig_res_mapman.R")
 source("../libpurzel/func_edgeR_top.R")
 source("../libpurzel/func_intersecting_dge.R")
 source("../libpurzel/func_final_DGE_list.R")
+source("../libpurzel/func_order_by_MapMan_BinCode.R")
+source("../libpurzel/func_create_type.R")
+source("../libpurzel/func_combine_two_vectors.R")
+source("../libpurzel/func_combine_two_final_DGE_lists.R")
 ```
 
 
@@ -101,7 +105,7 @@ dim(assoc_mapman)
 colnames(assoc_mapman)
 
 # use only mapman entries where the TYPE is TRUE
-assoc_mapman_true <- subset(assoc_mapman, assoc_mapman$TYPE==TRUE)
+assoc_mapman_true <- droplevels(subset(assoc_mapman, assoc_mapman$TYPE==TRUE))
 dim(assoc_mapman_true)
 
 # only unique entries for DMP from assoc_mapman
@@ -127,6 +131,33 @@ table(count(merge_mapman_pgsc_dmg, vars = "pgsc_dmg")$freq)
 
 # count how many different bincodes were associated per protein identifier
 table(count(merge_mapman_pgsc, vars = "pgsc_dmp")$freq)
+```
+
+
+### Count how many different protein identifier were associated per bincode
+```{r count how many different protein identifier were associated per bincode}
+mapman_name <- assoc_mapman_true$NAME
+mapman_bincode <- assoc_mapman_true$BINCODE
+mapman_bincode_table <- table(mapman_bincode)
+
+mapman_bincode_order <- cbind(BINCODE = as.character(mapman_bincode), 
+                              NAME = as.character(mapman_name),
+                              order = 1:57441)
+
+# unique mapman bincode and name (without order column)
+mapman_bincode_order_unique <- as.data.frame( unique(mapman_bincode_order[,-3]) )
+head(mapman_bincode_order_unique)
+
+# sort unique mapman table by bincodes to get index (later needed for order)
+mapman_bincode_order_unique_alphabetical <- mapman_bincode_order_unique[order(mapman_bincode_order_unique$BINCODE),]
+mapman_bincode_order_unique_index <- as.numeric(row.names(mapman_bincode_order_unique_alphabetical))
+
+# merge unique mapman table with count table per 
+mapman_bincode_merge <- merge(mapman_bincode_order_unique, mapman_bincode_table, by.x = "BINCODE", by.y = "mapman_bincode")
+mapman_bincode_merge_ordered <- mapman_bincode_merge[order(mapman_bincode_order_unique_index),]
+head(mapman_bincode_merge_ordered)
+
+write.table(mapman_bincode_merge_ordered, "output/mapman_bincode_frequency_per_dmp.txt", sep="\t", row.names = F, quote = F)
 ```
 
 
@@ -245,12 +276,21 @@ grid.draw(venn.plot)
 
 #### Intersection greenhouse-field control vs. stress DOWN
 ```{r intersection greenhouse-field control vs. stress DOWN}
+# return_complete == TRUE means that intersect_res will be merged with COMPLETE MAPMAN_PGSC annotation file
+intersect_cultivation_condition_down_res_complete <- 
+  func_intersecting_dge(set1 = res_field$top_sig_down, 
+                        set2 = res_greenhouse$top_sig_down, 
+                        lab1 = "field",
+                        lab2 = "gh",
+                        return_complete = TRUE)
 
+# return_complete == FALSE means that intersect_res will be merged with MAPMAN_PGSC annotation file containing only UNIQUE DMG ids
 intersect_cultivation_condition_down_res <- 
   func_intersecting_dge(set1 = res_field$top_sig_down, 
                         set2 = res_greenhouse$top_sig_down, 
                         lab1 = "field",
-                        lab2 = "gh")
+                        lab2 = "gh",
+                        return_complete = FALSE)
 
 # first 25 intersecting DGE (columns: row.names, logFC of set1, logFC of set2, logFC mean, logFC sum, annotations)
 pander(head(  intersect_cultivation_condition_down_res[,c(1,2,6,10:13)], n=25))
@@ -272,6 +312,15 @@ grid.draw(venn.plot)
 
 #### Intersection greenhouse-field control vs. stress UP
 ```{r intersection greenhouse-field control vs. stress UP}
+# return_complete == TRUE means that intersect_res will be merged with COMPLETE MAPMAN_PGSC annotation file
+intersect_cultivation_condition_up_res_complete <- 
+  func_intersecting_dge(set1 = res_field$top_sig_up, 
+                        set2 = res_greenhouse$top_sig_up, 
+                        lab1 = "field",
+                        lab2 = "gh",
+                        return_complete = TRUE)
+
+# return_complete == FALSE means that intersect_res will be merged with MAPMAN_PGSC annotation file containing only UNIQUE DMG ids
 intersect_cultivation_condition_up_res <- 
   func_intersecting_dge(set1 = res_field$top_sig_up, 
                         set2 = res_greenhouse$top_sig_up, 
@@ -293,7 +342,7 @@ write.table(intersect_cultivation_condition_up_res,
 ### GREENHOUSE + CONTROL: Tolerant vs. Sensitive
 Execute edgeR procedure to identify differentially expresses genes (DGE) comparing tolerant and sensitive groups for greenhouse AND control samples
 ```{r edgeR greenhouse control - tolerant vs. sensitive, echo=TRUE}
-group_idx <- which(samplelist_greenhouse[, "condition"]=="control")
+group_idx <- which(samplelist_greenhouse[, "condition"] == "control")
 group_factor <- as.factor(subset(samplelist_greenhouse, condition == "control")$tolerance)
 res_greenhouse_control <- func_edgeR_dge(counts_keep_greenhouse, group_idx, group_1 = group_factor)
 #res_greenhouse_control$sums
@@ -519,6 +568,63 @@ write.table(res_field_control_pageman, "output/pageman_field_control_all.txt",
             sep="\t", row.names=F, quote=F)
 write.table(res_field_stress_pageman, "output/pageman_field_stress_all.txt", 
             sep="\t", row.names=F, quote=F)
+```
+
+#### Save tables for PageMan (tolerant vs. sensitive) WITH DMG
+```{r save tables for PageMan (tolerant vs. sensitive) WITH DMG}
+res_greenhouse_control_pageman_dmg <- func_pageman_res_dmg(res_greenhouse_control)
+res_greenhouse_stress_pageman_dmg <- func_pageman_res_dmg(res_greenhouse_stress)
+res_field_control_pageman_dmg <- func_pageman_res_dmg(res_field_control)
+res_field_stress_pageman_dmg <- func_pageman_res_dmg(res_field_stress)
+```
+
+
+#### Merge MapMan to PageMan: tolerant vs. sensitive
+```{r merge MapMan to PageMan tolerant vs. sensitive}
+# merge to mapman bins
+# dir ==  1 --> tol > sens --> T
+# dir == -1 --> sens > tol --> S
+res_field_control_pageman_mapman_T <- merge(res_field_control_pageman_dmg[which(res_field_control_pageman_dmg$dir == 1),], 
+                                            assoc_mapman, by.x = "pgsc_dmp", by.y = "IDENTIFIER")
+res_field_control_pageman_mapman_S <- merge(res_field_control_pageman_dmg[which(res_field_control_pageman_dmg$dir == -1),], 
+                                            assoc_mapman, by.x = "pgsc_dmp", by.y = "IDENTIFIER")
+res_field_stress_pageman_mapman_T <- merge(res_field_stress_pageman_dmg[which(res_field_stress_pageman_dmg$dir == 1),], 
+                                            assoc_mapman, by.x = "pgsc_dmp", by.y = "IDENTIFIER")
+res_field_stress_pageman_mapman_S <- merge(res_field_stress_pageman_dmg[which(res_field_stress_pageman_dmg$dir == -1),], 
+                                            assoc_mapman, by.x = "pgsc_dmp", by.y = "IDENTIFIER")
+# greenhouse
+res_greenhouse_control_pageman_mapman_T <- merge(res_greenhouse_control_pageman_dmg[which(res_greenhouse_control_pageman_dmg$dir == 1),], 
+                                            assoc_mapman, by.x = "pgsc_dmp", by.y = "IDENTIFIER")
+res_greenhouse_control_pageman_mapman_S <- merge(res_greenhouse_control_pageman_dmg[which(res_greenhouse_control_pageman_dmg$dir == -1),], 
+                                            assoc_mapman, by.x = "pgsc_dmp", by.y = "IDENTIFIER")
+res_greenhouse_stress_pageman_mapman_T <- merge(res_greenhouse_stress_pageman_dmg[which(res_greenhouse_stress_pageman_dmg$dir == 1),], 
+                                            assoc_mapman, by.x = "pgsc_dmp", by.y = "IDENTIFIER")
+res_greenhouse_stress_pageman_mapman_S <- merge(res_greenhouse_stress_pageman_dmg[which(res_greenhouse_stress_pageman_dmg$dir == -1),], 
+                                            assoc_mapman, by.x = "pgsc_dmp", by.y = "IDENTIFIER")
+
+# sort
+res_field_control_pageman_mapman_T <- func_order_by_MapMan_BinCode( droplevels(res_field_control_pageman_mapman_T), "BINCODE")
+res_field_control_pageman_mapman_S <- func_order_by_MapMan_BinCode( droplevels(res_field_control_pageman_mapman_S), "BINCODE")
+res_field_stress_pageman_mapman_T <- func_order_by_MapMan_BinCode( droplevels(res_field_stress_pageman_mapman_T), "BINCODE")
+res_field_stress_pageman_mapman_S <- func_order_by_MapMan_BinCode( droplevels(res_field_stress_pageman_mapman_S), "BINCODE")
+
+res_greenhouse_control_pageman_mapman_T <- func_order_by_MapMan_BinCode( droplevels(res_greenhouse_control_pageman_mapman_T), "BINCODE")
+res_greenhouse_control_pageman_mapman_S <- func_order_by_MapMan_BinCode( droplevels(res_greenhouse_control_pageman_mapman_S), "BINCODE")
+res_greenhouse_stress_pageman_mapman_T <- func_order_by_MapMan_BinCode( droplevels(res_greenhouse_stress_pageman_mapman_T), "BINCODE")
+res_greenhouse_stress_pageman_mapman_S <- func_order_by_MapMan_BinCode( droplevels(res_greenhouse_stress_pageman_mapman_S), "BINCODE")
+
+# save tables
+write.table(res_field_control_pageman_mapman_T, "output/res_field_control_pageman_mapman_T.txt", sep="\t", row.names=F, quote=F)
+write.table(res_field_control_pageman_mapman_S, "output/res_field_control_pageman_mapman_S.txt", sep="\t", row.names=F, quote=F)
+write.table(res_field_stress_pageman_mapman_T, "output/res_field_stress_pageman_mapman_T.txt", sep="\t", row.names=F, quote=F)
+write.table(res_field_stress_pageman_mapman_S, "output/res_field_stress_pageman_mapman_S.txt", sep="\t", row.names=F, quote=F)
+write.table(res_greenhouse_control_pageman_mapman_T, "output/res_greenhouse_control_pageman_mapman_T.txt", sep="\t", row.names=F, quote=F)
+write.table(res_greenhouse_control_pageman_mapman_S, "output/res_greenhouse_control_pageman_mapman_S.txt", sep="\t", row.names=F, quote=F)
+write.table(res_greenhouse_stress_pageman_mapman_T, "output/res_greenhouse_stress_pageman_mapman_T.txt", sep="\t", row.names=F, quote=F)
+write.table(res_greenhouse_stress_pageman_mapman_S, "output/res_greenhouse_stress_pageman_mapman_S.txt", sep="\t", row.names=F, quote=F)
+
+# res_field_control_pageman_mapman_T <- res_field_control_pageman_mapman_T[order(res_field_control_pageman_mapman_T$BINCODE),]
+# res_field_control_pageman_mapman_S <- res_field_control_pageman_mapman_S[order(res_field_control_pageman_mapman_S$BINCODE),]
 ```
 
 
@@ -938,11 +1044,23 @@ dev.off()
 res_greenhouse_merge_sig <- subset(res_greenhouse$merge, res_greenhouse$merge$FDR < 0.05)
 res_field_merge_sig <- subset(res_field$merge, res_field$merge$FDR < 0.05)
 
-# select columns: pgsc_dmp, logFC, pvalue, FDR
+colnames(res_greenhouse_merge_sig)
+
+# select columns: pgsc_dmp (8), logFC (2), pvalue (4), FDR (5)
 write.table(res_greenhouse_merge_sig[,c(8,2,4,5)], "output/mapman_greenhouse_sig.txt", sep="\t", row.names=F, quote=F)
 write.table(res_greenhouse$merge[,c(8,2,4,5)], "output/mapman_greenhouse_all.txt", sep="\t", row.names=F, quote=F)
 write.table(res_field_merge_sig[,c(8,2,4,5)], "output/mapman_field_sig.txt", sep="\t", row.names=F, quote=F)
 write.table(res_field$merge[,c(8,2,4,5)], "output/mapman_field_all.txt", sep="\t", row.names=F, quote=F)
+
+# combine intersection of significantly up-/down-regulated genes for MapMan visualisation
+# columns for PGSC_DMP if (12) and logFC (mean of greenhouse and field, 10)
+colnames(intersect_cultivation_condition_up_res_complete)
+head(intersect_cultivation_condition_up_res_complete[,c(12,10)])
+
+write.table( rbind( unique(intersect_cultivation_condition_up_res_complete[,c(12,10)]),
+                    unique(intersect_cultivation_condition_down_res_complete[,c(12,10)])), 
+            "output/mapman_intersect_cultivation_condition_sig.txt",
+             sep="\t", row.names=F, quote=F)
 
 # write.table(res_greenhouse$top_all, "output/res_greenhouse_top_all.txt", sep="\t")
 # write.table(res_greenhouse_control$top_all, "output/res_greenhouse_control_top_all.txt", sep="\t")
@@ -993,20 +1111,55 @@ write.table(res_field_sensitive_pageman,
 # write.table(pageman_greenhouse_tolerant_sensitive, 
 #             "output/pageman_greenhouse_tolerant_sensitive_all.txt", 
 #             sep="\t", row.names=F, quote=F)
+
+
+
+# use only significantly changed genes (DGEs): dir != 0
+res_greenhouse_tolerant_pageman_sig <- subset(res_greenhouse_tolerant_pageman, res_greenhouse_tolerant_pageman$dir != 0)
+res_greenhouse_sensitive_pageman_sig <- subset(res_greenhouse_sensitive_pageman, res_greenhouse_sensitive_pageman$dir != 0)
+
+hist(res_greenhouse_tolerant_pageman_sig$logFC, col="grey", breaks=20)
+hist(res_greenhouse_sensitive_pageman_sig$logFC, col="grey", breaks=20)
+
+length(which(abs(res_greenhouse_sensitive_pageman_sig$logFC)<0.5))
+
+write.table(res_greenhouse_tolerant_pageman_sig, 
+            "output/pageman_greenhouse_tolerant_sig.txt", 
+            sep="\t", row.names=F, quote=F)
+
+write.table(res_greenhouse_sensitive_pageman_sig, 
+            "output/pageman_greenhouse_sensitive_sig.txt", 
+            sep="\t", row.names=F, quote=F)
+```
+
+#### Save tables for PageMan control vs. stress WITH DMG
+```{r save tables for PageMan control vs. stress WITH DMG}
+# results separately for tolerant and sensitive cultivars
+res_field_tolerant_pageman_dmg <- func_pageman_res_dmg(res_field_tolerant)
+res_field_sensitive_pageman_dmg <- func_pageman_res_dmg(res_field_sensitive)
+res_greenhouse_tolerant_pageman_dmg <- func_pageman_res_dmg(res_greenhouse_tolerant)
+res_greenhouse_sensitive_pageman_dmg <- func_pageman_res_dmg(res_greenhouse_sensitive)
+
+head(res_greenhouse_sensitive_pageman_dmg)
 ```
 
 
-#### merge significant Pageman res to MapMan bins field
+#### Merge significant Pageman res to MapMan bins field
 ```{r merge significant Pageman res to MapMan bins field (control vs. stress)}
 # only significant DGE: dir must be -1 or +1 (not 0)!
 # tolerant
 res_field_tolerant_pageman_mapman <- merge(
-  res_field_tolerant_pageman[which(res_field_tolerant_pageman$dir%in%c(-1,1)),], 
+  res_field_tolerant_pageman_dmg[which(res_field_tolerant_pageman_dmg$dir%in%c(-1,1)),], 
   assoc_mapman, by.x = "pgsc_dmp", by.y = "IDENTIFIER")
+
 # sensitive
 res_field_sensitive_pageman_mapman <- merge(
-  res_field_sensitive_pageman[which(res_field_sensitive_pageman$dir%in%c(-1,1)),], 
+  res_field_sensitive_pageman_dmg[which(res_field_sensitive_pageman_dmg$dir%in%c(-1,1)),], 
   assoc_mapman, by.x = "pgsc_dmp", by.y = "IDENTIFIER")
+
+# sort
+res_field_tolerant_pageman_mapman <- func_order_by_MapMan_BinCode( droplevels(res_field_tolerant_pageman_mapman), "BINCODE")
+res_field_sensitive_pageman_mapman <- func_order_by_MapMan_BinCode( droplevels(res_field_sensitive_pageman_mapman), "BINCODE")
 
 #res_field_sensitive_pageman_mapman <- merge(res_field_sensitive_pageman, assoc_mapman, 
 #                                           by.x = "pgsc_dmp", by.y = "IDENTIFIER")
@@ -1014,11 +1167,11 @@ res_field_sensitive_pageman_mapman <- merge(
 #            sep="\t", row.names=F, quote=F)
 
 write.table(res_field_tolerant_pageman_mapman,
-            "output/pageman_field_tolerant_sig_mapman.txt",
+            "output/res_field_tolerant_pageman_mapman.txt",
             sep="\t", row.names=F, quote=F)
 
 write.table(res_field_sensitive_pageman_mapman,
-            "output/pageman_field_sensitive_sig_mapman.txt",
+            "output/res_field_sensitive_pageman_mapman.txt",
             sep="\t", row.names=F, quote=F)
 
 table(droplevels(res_field_sensitive_pageman_mapman$BIN))
@@ -1051,20 +1204,25 @@ head(res_field_sensitive_pageman_mapman_ordered)
 # only significant DGE: dir must be -1 or +1 (not 0)!
 # tolerant
 res_greenhouse_tolerant_pageman_mapman <- merge(
-  res_greenhouse_tolerant_pageman[which(res_greenhouse_tolerant_pageman$dir%in%c(-1,1)),], 
+  res_greenhouse_tolerant_pageman_dmg[which(res_greenhouse_tolerant_pageman_dmg$dir%in%c(-1,1)),], 
   assoc_mapman, by.x = "pgsc_dmp", by.y = "IDENTIFIER")
 
 # sensitive
 res_greenhouse_sensitive_pageman_mapman <- merge(
-  res_greenhouse_sensitive_pageman[which(res_greenhouse_sensitive_pageman$dir%in%c(-1,1)),],
+  res_greenhouse_sensitive_pageman_dmg[which(res_greenhouse_sensitive_pageman_dmg$dir%in%c(-1,1)),],
   assoc_mapman, by.x = "pgsc_dmp", by.y = "IDENTIFIER")
 
+# sort
+res_greenhouse_tolerant_pageman_mapman <- func_order_by_MapMan_BinCode( droplevels(res_greenhouse_tolerant_pageman_mapman), "BINCODE")
+res_greenhouse_sensitive_pageman_mapman <- func_order_by_MapMan_BinCode( droplevels(res_greenhouse_sensitive_pageman_mapman), "BINCODE")
+
+
 write.table(res_greenhouse_tolerant_pageman_mapman,
-            "output/pageman_greenhouse_tolerant_sig_mapman.txt",
+            "output/res_greenhouse_tolerant_pageman_mapman.txt",
             sep="\t", row.names=F, quote=F)
 
 write.table(res_greenhouse_sensitive_pageman_mapman,
-            "output/pageman_greenhouse_sensitive_sig_mapman.txt",
+            "output/res_greenhouse_sensitive_pageman_mapman.txt",
             sep="\t", row.names=F, quote=F)
 
 
@@ -1081,10 +1239,16 @@ length(unique(subset(res_greenhouse_tolerant_pageman_mapman$logFC,
 
 #### merge edgeR-results to mapman bins
 ```{r merge edgeR-results to mapman bins (control vs. stress)}
+# use only DGE in results table
 res_field_tolerant_mapman <- func_merge_sig_res_mapman(res_field_tolerant$top_sig)
 res_field_sensitive_mapman <- func_merge_sig_res_mapman(res_field_sensitive$top_sig)
 res_greenhouse_tolerant_mapman <- func_merge_sig_res_mapman(res_greenhouse_tolerant$top_sig)
 res_greenhouse_sensitive_mapman <- func_merge_sig_res_mapman(res_greenhouse_sensitive$top_sig)
+
+# use all genes in results table
+res_greenhouse_tolerant_mapman_all_up <- func_merge_sig_res_mapman(res_greenhouse_tolerant$top_all_up)
+res_greenhouse_tolerant_mapman_all_down <- func_merge_sig_res_mapman(res_greenhouse_tolerant$top_all_down)
+res_greenhouse_tolerant$sums
 ```
 
 
@@ -1525,27 +1689,126 @@ write.table(final_field_stress_S, "output/final_dge_field_stress_S.txt", sep="\t
 ```{r save final DGE list control vs. stress}
 
 # dir ==  1 --> stress > control --> up
+final_greenhouse_all_up <- func_final_DGE_list(res = res_greenhouse, dir_value = 1) # all cultivars together
 final_greenhouse_tolerant_up <- func_final_DGE_list(res = res_greenhouse_tolerant, dir_value = 1)
 final_greenhouse_sensitive_up <- func_final_DGE_list(res = res_greenhouse_sensitive, dir_value = 1)
+final_field_all_up <- func_final_DGE_list(res = res_field, dir_value = 1) # all cultivars together
 final_field_tolerant_up <- func_final_DGE_list(res = res_field_tolerant, dir_value = 1)
 final_field_sensitive_up <- func_final_DGE_list(res = res_field_sensitive, dir_value = 1)
 
+write.table(final_greenhouse_all_up, "output/final_dge_greenhouse_all_up.txt", sep="\t", row.names=F, quote=F)
 write.table(final_greenhouse_tolerant_up, "output/final_dge_greenhouse_tolerant_up.txt", sep="\t", row.names=F, quote=F)
 write.table(final_greenhouse_sensitive_up, "output/final_dge_greenhouse_sensitive_up.txt", sep="\t", row.names=F, quote=F)
+write.table(final_field_all_up, "output/final_dge_field_all_up.txt", sep="\t", row.names=F, quote=F)
 write.table(final_field_tolerant_up, "output/final_dge_field_tolerant_up.txt", sep="\t", row.names=F, quote=F)
 write.table(final_field_sensitive_up, "output/final_dge_field_sensitive_up.txt", sep="\t", row.names=F, quote=F)
 
 # dir == -1 --> control > stress --> down
+final_greenhouse_all_down <- func_final_DGE_list(res = res_greenhouse, dir_value = -1) # all cultivars together
 final_greenhouse_tolerant_down <- func_final_DGE_list(res = res_greenhouse_tolerant, dir_value = -1)
 final_greenhouse_sensitive_down <- func_final_DGE_list(res = res_greenhouse_sensitive, dir_value = -1)
+final_field_all_down <- func_final_DGE_list(res = res_field, dir_value = -1) # all cultivars together
 final_field_tolerant_down <- func_final_DGE_list(res = res_field_tolerant, dir_value = -1)
 final_field_sensitive_down <- func_final_DGE_list(res = res_field_sensitive, dir_value = -1)
 
+write.table(final_greenhouse_all_down, "output/final_dge_greenhouse_all_down.txt", sep="\t", row.names=F, quote=F)
 write.table(final_greenhouse_tolerant_down, "output/final_dge_greenhouse_tolerant_down.txt", sep="\t", row.names=F, quote=F)
 write.table(final_greenhouse_sensitive_down, "output/final_dge_greenhouse_sensitive_down.txt", sep="\t", row.names=F, quote=F)
+write.table(final_field_all_down, "output/final_dge_field_all_down.txt", sep="\t", row.names=F, quote=F)
 write.table(final_field_tolerant_down, "output/final_dge_field_tolerant_down.txt", sep="\t", row.names=F, quote=F)
 write.table(final_field_sensitive_down, "output/final_dge_field_sensitive_down.txt", sep="\t", row.names=F, quote=F)
 ```
+
+
+#### Merge final DGE list: control vs. stress (compare greenhouse and field)
+**Merge results of the same comparison for greenhouse and field**
+
+```{r merge final DGE list control vs. stress (compare greenhouse and field)}
+
+final_all_up <- func_combine_two_final_DGE_lists_2(final_DGE_list_1 = final_greenhouse_all_up,
+                                                   final_DGE_list_2 = final_field_all_up)
+
+final_all_down <- func_combine_two_final_DGE_lists_2(final_DGE_list_1 = final_greenhouse_all_down,
+                                                     final_DGE_list_2 = final_field_all_down)
+
+write.table(final_all_up, "output/final_dge_all_up_merged_by_dmg.txt", sep="\t", row.names=F, quote=F)
+write.table(final_all_down, "output/final_dge_all_down_merged_by_dmg.txt", sep="\t", row.names=F, quote=F)
+```
+
+#### Merge final DGE list: control vs. stress (compare tolerant and sensitive)
+**Merge results of the same comparison for tolerant and sensitive, e.g. greenhouse up-regulated genes**
+
+
+```{r merge final DGE list control vs. stress (compare tolerant and sensitive)}
+
+final_greenhouse_up_merged_by_dmg <- func_combine_two_final_DGE_lists(final_greenhouse_tolerant_up,
+                                                                      final_greenhouse_sensitive_up)
+
+final_greenhouse_down_merged_by_dmg <- func_combine_two_final_DGE_lists(final_greenhouse_tolerant_down,
+                                                                        final_greenhouse_sensitive_down)
+
+final_field_up_merged_by_dmg <- func_combine_two_final_DGE_lists(final_field_tolerant_up,
+                                                                 final_field_sensitive_up)
+
+final_field_down_merged_by_dmg <- func_combine_two_final_DGE_lists(final_field_tolerant_down,
+                                                                   final_field_sensitive_down)
+
+write.table(final_greenhouse_up_merged_by_dmg, "output/final_dge_greenhouse_up_merged_by_dmg.txt", sep="\t", row.names=F, quote=F)
+write.table(final_greenhouse_down_merged_by_dmg, "output/final_dge_greenhouse_down_merged_by_dmg.txt", sep="\t", row.names=F, quote=F)
+write.table(final_field_up_merged_by_dmg, "output/final_dge_field_up_merged_by_dmg.txt", sep="\t", row.names=F, quote=F)
+write.table(final_field_down_merged_by_dmg, "output/final_dge_field_down_merged_by_dmg.txt", sep="\t", row.names=F, quote=F)
+```
+
+
+```{r try out something}
+final_greenhouse_tolerant_up2 <- droplevels(final_greenhouse_tolerant_up)
+table(final_greenhouse_tolerant_up2$BINCODE)
+
+try_out <- cbind("tol_up" = table(final_greenhouse_tolerant_up$NAME),
+                 "sens_up" = table(final_greenhouse_sensitive_up$NAME),
+                 "tol_down" = table(final_greenhouse_tolerant_down$NAME),
+                 "sens_down" = table(final_greenhouse_sensitive_down$NAME))
+head(try_out)
+
+head(mapman_bincode_merge_ordered)
+
+try_out_2 <- merge(mapman_bincode_merge_ordered, try_out, all.x = T, all.y = F, by.x = "NAME", by.y = "row.names")
+head(try_out_2)
+dim(try_out_2)
+```
+
+
+# generate data for Joachim
+## table of identifier (protein-coding genes and non-coding genes) with functional annotation, but only for 25846 selected genes
+```{r generate data for Joachim}
+# functional annotation of non-coding genes
+assoc_non_coding_genes <- read.table("data/non-protein-coding-genes.txt", header=F, sep="\t")
+# use only two columns
+assoc_non_coding_genes2 <- assoc_non_coding_genes[, c("V9", "V13")]
+colnames(assoc_non_coding_genes2) <- c("identifier", "func")
+head(assoc_non_coding_genes2)
+
+# only unique annotation per gene (DMG)
+assoc_pgsc_only_dmg <- unique( assoc_pgsc[, c("pgsc_dmg", "func")] )
+colnames(assoc_pgsc_only_dmg) <- c("identifier", "func")
+head(assoc_pgsc_only_dmg)
+
+# combine table of identifier for protein-coding genes and non-coding genes
+assoc_pgsc_all <- rbind(assoc_pgsc_only_dmg, assoc_non_coding_genes2)
+head(assoc_pgsc_all)
+
+# Identifier of selected genes
+head(rownames(counts_keep))
+counts_keep_rownames <- rownames(counts_keep)
+
+# select only part of the annotation table with selected genes
+length(which(assoc_pgsc_all$identifier %in% counts_keep_rownames))
+assoc_pgsc_keep <- assoc_pgsc_all[which(assoc_pgsc_all$identifier %in% counts_keep_rownames), ]
+
+write.table(assoc_pgsc_keep, "output/assoc_pgsc_keep.txt", sep="\t", row.names = F)
+```
+
+
 
 # save workspace
 ```{r save workspace}
