@@ -1,0 +1,315 @@
+---
+title: "MapMan Association"
+author: "Heike Sprenger"
+date: "September 24, 2015"
+output:
+  html_document:
+    highlight: tango
+    number_section: yes
+    theme: cerulean
+    toc: yes
+    toc_depth: 4
+---
+
+# Set working directory  
+```{r set working directory}
+#getwd()
+#setwd("D:/work/repos/trost_transcriptomics")
+#setwd("~/work/repos/trost_transcriptomics")
+```
+
+[solution for issue with working directory and knitr](https://github.com/yihui/knitr/issues/277)
+
+# Load workspace, packages and scripts
+```{r load workspace, message=FALSE}
+# load packages
+library(knitr)
+library(pcaMethods)
+library(edgeR)
+library(VennDiagram)
+library(gplots)
+library(RColorBrewer)
+library(plyr)
+library(reshape2)
+library(pander)
+library(ggplot2)
+library(naturalsort)
+
+# set options for pander
+panderOptions('table.split.table', 200)
+
+# set options for knitr
+opts_chunk$set(fig.width=5, fig.height=5, cache=FALSE, highlight = TRUE, fig.show="asis")
+opts_knit$set(root.dir = '../')
+
+# load workspace
+#load("mapman_association.RData")
+```
+
+
+# Source R functions
+```{r source R functions}
+source("../libpurzel/func_order_by_MapMan_BinCode.R")
+```
+
+
+# Load annotation files
+## Load PGSC annotation file
+```{r load PGSC annotation file}
+# PGSC annotation table with gene, transcript, protein IDs and functional annotation
+assoc_pgsc <- read.table("data/PGSC_DM_v3.4_g2t2c2p2func_edit.txt")
+colnames(assoc_pgsc) <- c("pgsc_dmg", "pgsc_dmt", "pgsc_dmc", "pgsc_dmp", "func")
+pander(head(assoc_pgsc))
+
+# only unique entries for DMG and functional annotation
+# assoc_pgsc_dmg <- unique(assoc_pgsc[,c(1,5)])
+assoc_pgsc_unique_dmg <- unique(assoc_pgsc$pgsc_dmg)
+assoc_pgsc_unique_dmt <- unique(assoc_pgsc$pgsc_dmt)
+assoc_pgsc_unique_dmp <- unique(assoc_pgsc$pgsc_dmp)
+```
+
+## Load MapMan annotation file
+```{r load MapMan annotation file}
+# table with MapMan annotation per protein ID (pgsc_dmp)
+assoc_mapman <- read.table("data/mapman_cleaned_output_new.txt", header = T)
+dim(assoc_mapman)
+# 58652 5
+colnames(assoc_mapman)
+
+# use only mapman entries where the TYPE is TRUE
+assoc_mapman_true <- droplevels(subset(assoc_mapman, assoc_mapman$TYPE==TRUE))
+dim(assoc_mapman_true)
+# 57441 5
+
+# only unique entries for DMP from assoc_mapman
+assoc_mapman_unique_ids <- unique(assoc_mapman_true$IDENTIFIER)
+length(assoc_mapman_unique_ids)
+length(assoc_pgsc_unique_dmp)
+# complete overlap with assoc_pgsc_unique_dmp: 56218 identifier!
+```
+
+
+## Load GoMapMan annotation file
+```{r load GoMapMan annotation file}
+assoc_gomapman_dmg <- read.table("data/gomapman_2015_09_08/stu_PGSC_gene_2015-09-08_mapping.txt", 
+                                 header = T, sep="\t", fill=T, quote = "")
+assoc_gomapman_dmt <- read.table("data/gomapman_2015_09_08/stu_PGSC_transcript_2015-09-08_mapping.txt", 
+                                 header = T, sep="\t", fill=T, quote = "")
+assoc_gomapman_dmp <- read.table("data/gomapman_2015_09_08/stu_PGSC_protein_2015-09-08_mapping.txt", 
+                                 header = T, sep="\t", fill=T, quote = "")
+
+# additional column for type (default: T, or "" if empty)
+assoc_gomapman_dmp$TYPE <- "T"
+assoc_gomapman_dmp$TYPE[assoc_gomapman_dmp$IDENTIFIER == ""] <- ""
+write.table(assoc_gomapman_dmp, 
+            "../../MapManData/mappings/stu_PGSC_protein_2015-09-08_mapping_modified.txt", 
+            sep = "\t", row.names = F)
+
+assoc_gomapman_dmg$TYPE <- "T"
+assoc_gomapman_dmg$TYPE[assoc_gomapman_dmg$IDENTIFIER == ""] <- ""
+write.table(assoc_gomapman_dmg, 
+            "../../MapManData/mappings/stu_PGSC_gene_2015-09-08_mapping_modified.txt", 
+            sep = "\t", row.names = F)
+
+# remove lines with IDENTIFIER
+assoc_gomapman_dmg_true <- subset(assoc_gomapman_dmg, assoc_gomapman_dmg$IDENTIFIER != "")
+assoc_gomapman_dmt_true <- subset(assoc_gomapman_dmt, assoc_gomapman_dmt$IDENTIFIER != "")
+assoc_gomapman_dmp_true <- subset(assoc_gomapman_dmp, assoc_gomapman_dmp$IDENTIFIER != "")
+```
+
+
+# Merge PGSC annotation table with MapMan table (via DMP identifier)
+```{r merge PGSC annotation table with MapMan table}
+# merge INTERSECTING rows of MapMan and PGSC tables (based on DMP)
+merge_mapman_pgsc <- merge(assoc_pgsc, assoc_mapman_true, 
+                           by.x = "pgsc_dmp", by.y = "IDENTIFIER")
+colnames(merge_mapman_pgsc)
+dim(merge_mapman_pgsc)
+# 57441
+write.table(merge_mapman_pgsc, "data/merge_mapman_pgsc.txt", sep="\t")
+
+# merge ALL rows of MapMan and PGSC tables (based on DMP)
+merge_mapman_pgsc_all <- merge(assoc_mapman, assoc_pgsc, 
+                               by.x = "IDENTIFIER", by.y = "pgsc_dmp", 
+                               all = T, sort = F)
+dim(assoc_mapman)
+# 58652 5
+dim(merge_mapman_pgsc_all)
+# 58652 9
+write.table(merge_mapman_pgsc_all, "data/merge_mapman_pgsc_all.txt", sep="\t")
+
+# unique MapMan classifications per gene
+merge_mapman_pgsc_dmg <- unique(merge_mapman_pgsc[,c(2,5:7)])
+pander(head(merge_mapman_pgsc_dmg))
+dim(merge_mapman_pgsc_dmg)
+# 41585 4
+
+merge_mapman_pgsc_dmp <- unique(merge_mapman_pgsc[,c(1,2,5:7)])
+dim(merge_mapman_pgsc_dmp)
+# 57441 5 
+
+# count how many different bincodes were associated per gene identifier
+count_merge_mapman_gpsc_dmg <- count(merge_mapman_pgsc_dmg, vars = "pgsc_dmg")
+table(count_merge_mapman_gpsc_dmg$freq)
+
+# count how many different bincodes were associated per protein identifier
+count_merge_mapman_pgsc_dmp <- count(merge_mapman_pgsc, vars = "pgsc_dmp")
+table(count_merge_mapman_pgsc_dmp$freq)
+```
+
+
+## Extract unique mappings per gene (DMG)
+```{r extract unique mappings per gene (DMG)}
+colnames(merge_mapman_pgsc_all)
+merge_mapman_pgsc_all_unique_dmg <- unique(merge_mapman_pgsc_all[,c(2,3,5,6,9)])
+
+merge_mapman_pgsc_all_unique_dmg <- unique(data.frame(
+                                           "BINCODE" = merge_mapman_pgsc_all$BINCODE,
+                                           "NAME" = merge_mapman_pgsc_all$NAME,
+                                           "IDENTIFIER" = merge_mapman_pgsc_all$pgsc_dmg,
+                                           "DESCRIPTION" = merge_mapman_pgsc_all$func,
+                                           "TYPE" = merge_mapman_pgsc_all$TYPE))
+
+head(merge_mapman_pgsc_all_unique_dmg)
+
+Rprof()
+merge_mapman_pgsc_all_unique_dmg_ordered <- merge_mapman_pgsc_all_unique_dmg[
+  naturalorder(merge_mapman_pgsc_all_unique_dmg$BINCODE), ]
+Rprof(NULL)
+summaryRprof()
+
+head(merge_mapman_pgsc_all_unique_dmg_ordered)
+```
+
+
+# Merge GoMapMan and MapMan tables (based on DMP)
+```{r Merge GoMapMan and MapMan tables (based on DMP)}
+merge_mapman_gomapman <- merge(assoc_mapman_true, assoc_gomapman_dmp_true, 
+                               by.x = "IDENTIFIER", by.y = "IDENTIFIER")
+
+length(unique(assoc_mapman_true$IDENTIFIER))
+length(unique(assoc_gomapman_dmp_true$IDENTIFIER))
+length(intersect(assoc_mapman_true$IDENTIFIER, 
+                 assoc_gomapman_dmp_true$IDENTIFIER))
+# complete overlap!
+```
+
+
+# Counting
+## Count mapped bins per IDENTIFIER
+```{r count mapped bins per IDENTIFIER}
+count_assoc_mapman_dmp <- count(assoc_mapman_true, vars = "IDENTIFIER")
+count_assoc_gomapman_dmp <- count(assoc_gomapman_dmp_true, vars = "IDENTIFIER")
+
+# table different frequencies
+table(count_assoc_mapman_dmp$freq)
+table(count_assoc_gomapman_dmp$freq)
+
+# Combine both count tables.  First make a new column in each.
+count_assoc_mapman_dmp$assoc <- 'mapman'
+count_assoc_gomapman_dmp$assoc <- 'gomapman'
+
+# and combine into new data frame
+count_assoc_dmp <- rbind(count_assoc_mapman_dmp, count_assoc_gomapman_dmp)
+
+# overlayed density plot
+ggplot(count_assoc_dmp, aes(freq, fill = assoc)) + 
+  geom_density(alpha = 0.2) + 
+  coord_trans(x="log10")
+```
+
+
+## Count DMP IDs per bin
+```{r count DMP IDs per bin}
+count_assoc_mapman_dmp_per_bin <- count(assoc_mapman_true, vars = c("BINCODE", "NAME"))
+count_assoc_gomapman_dmp_per_bin <- count(assoc_gomapman_dmp_true, vars = c("BINCODE", "NAME"))
+
+write.table(count_assoc_mapman_dmp_per_bin, "output/count_assoc_mapman_dmp_per_bin.txt", sep="\t", row.names = F)
+
+# intersection of occurring bins
+length(intersect(count_assoc_mapman_dmp_per_bin$BINCODE, 
+                 count_assoc_gomapman_dmp_per_bin$BINCODE))
+# 1038
+
+# merge INTERSECTING rows of MapMan and GoMapMan count tables (based on DMP)
+count_assoc_merge_dmp_per_bin <- merge(count_assoc_mapman_dmp_per_bin, 
+                                   count_assoc_gomapman_dmp_per_bin, 
+                                   by.x = "BINCODE", by.y = "BINCODE")
+dim(count_assoc_merge_dmp_per_bin)
+# 1038 5
+
+# plot of counts
+plot(log10(count_assoc_merge_dmp_per_bin$freq.x), 
+     log10(count_assoc_merge_dmp_per_bin$freq.y),
+     xlab = "Number of genes per bin from MapMan (log10)", 
+     ylab = "Number of genes per bin from GoMapMan (log10)")
+abline(0, 1, col="red")
+
+# merge ALL rows of MapMan and GoMapMan count tables (based on DMP)
+count_assoc_merge_dmp_per_bin_all <- merge(count_assoc_mapman_dmp_per_bin, 
+                                       count_assoc_gomapman_dmp_per_bin, 
+                                       by.x = "BINCODE", by.y = "BINCODE", all = T)
+dim(count_assoc_merge_dmp_per_bin_all)
+# 1294 5
+
+colnames(count_assoc_merge_dmp_per_bin_all) <- 
+  c("BINCODE","NAME.MAPMAN", "FREQ.MAPMAN", "NAME.GOMAPMAN", "FREQ.GOMAPMAN")
+```
+
+
+## Count DMG IDs per bin
+```{r count DMG IDs per bin}
+count_assoc_mapman_dmg_per_bin <- count(assoc_mapman_true, vars = c("BINCODE", "NAME"))
+count_assoc_gomapman_dmg_per_bin <- count(assoc_gomapman_dmg_true, vars = c("BINCODE", "NAME"))
+
+# intersection of occurring bins
+length(intersect(count_assoc_mapman_dmg_per_bin$BINCODE, 
+                 count_assoc_gomapman_dmg_per_bin$BINCODE))
+# 1038
+
+# merge INTERSECTING rows of MapMan and GoMapMan count tables (based on DMG)
+count_assoc_merge_dmg_per_bin <- merge(count_assoc_mapman_dmg_per_bin, 
+                                   count_assoc_gomapman_dmg_per_bin, 
+                                   by.x = "BINCODE", by.y = "BINCODE")
+
+# plot of counts
+plot(log10(count_assoc_merge_dmg_per_bin$freq.x), 
+     log10(count_assoc_merge_dmg_per_bin$freq.y),
+     xlab = "Number of genes per bin from MapMan (log10)", 
+     ylab = "Number of genes per bin from GoMapMan (log10)")
+abline(0, 1, col="red")
+
+# merge ALL rows of MapMan and GoMapMan count tables (based on DMG)
+count_assoc_merge_dmg_per_bin_all <- merge(count_assoc_mapman_dmg_per_bin, 
+                                       count_assoc_gomapman_dmg_per_bin, 
+                                       by.x = "BINCODE", by.y = "BINCODE", all = T)
+```
+
+
+## Order merged MapMan/GoMapMan count table by BinCode
+```{r order merged MapMan/GoMapMan count table by BinCode}
+# based on DMP
+count_assoc_merge_dmp_per_bin_all_ordered <- count_assoc_merge_dmp_per_bin_all[
+  naturalorder(count_assoc_merge_dmp_per_bin_all$BINCODE), ]
+
+count_assoc_merge_dmp_per_bin_ordered <- count_assoc_merge_dmp_per_bin[
+  naturalorder(count_assoc_merge_dmp_per_bin$BINCODE), ]
+
+pander(head(count_assoc_merge_dmp_per_bin_all_ordered))
+
+# based on DMG
+count_assoc_merge_dmg_per_bin_all_ordered <- count_assoc_merge_dmg_per_bin_all[
+  naturalorder(count_assoc_merge_dmg_per_bin_all$BINCODE), ]
+
+count_assoc_merge_dmg_per_bin_ordered <- count_assoc_merge_dmg_per_bin[
+  naturalorder(count_assoc_merge_dmg_per_bin$BINCODE), ]
+
+pander(head(count_assoc_merge_dmg_per_bin_all_ordered))
+```
+
+
+# save workspace
+```{r save workspace}
+save.image("mapman_association.RData")
+```
+
