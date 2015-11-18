@@ -27,6 +27,7 @@ library(knitr)
 library(pander)
 library(gplots)
 library(RColorBrewer)
+library(naturalsort)
 
 # set options for pander
 panderOptions('table.split.table', 200)
@@ -44,6 +45,7 @@ opts_knit$set(root.dir = '../')
 ```{r source R functions}
 source("../libpurzel/func_process_corto.R")
 source("../libpurzel/func_concatenate_two_columns.R")
+source("../libpurzel/func_order_by_MapMan_BinCode.R")
 source("../libpurzel/func_corto_plot.R")
 ```
 
@@ -56,7 +58,7 @@ corto_greenhouse_sensitive_up <- read.table("corto/corto_result_greenhouse_sensi
 corto_greenhouse_tolerant_down <- read.table("corto/corto_result_greenhouse_tolerant_down.txt", sep="\t", header=T)
 corto_greenhouse_tolerant_up <- read.table("corto/corto_result_greenhouse_tolerant_up.txt", sep="\t", header=T)
 
-head(corto_greenhouse_sensitive_down)
+pander(head(corto_greenhouse_sensitive_down))
 
 # field (control vs. stress)
 corto_field_sensitive_down <- read.table("corto/corto_result_field_sensitive_down.txt", sep="\t", header=T)
@@ -109,15 +111,23 @@ corto_greenhouse_down_merge <- merge(corto_greenhouse_tolerant_down_filtered, co
 
 # change colnames (replace x/y by real names)
 # x: tolerant, y: sensitive
-colnames(corto_greenhouse_up_merge) <- gsub(".x$",  ".tol.up", colnames(corto_greenhouse_up_merge))
-colnames(corto_greenhouse_up_merge) <- gsub(".y$",  ".sens.up", colnames(corto_greenhouse_up_merge))
-colnames(corto_greenhouse_down_merge) <- gsub(".x$",  ".tol.down", colnames(corto_greenhouse_down_merge))
-colnames(corto_greenhouse_down_merge) <- gsub(".y$",  ".sens.down", colnames(corto_greenhouse_down_merge))
+colnames(corto_greenhouse_up_merge) <- gsub(".x$", ".tol.up", colnames(corto_greenhouse_up_merge))
+colnames(corto_greenhouse_up_merge) <- gsub(".y$", ".sens.up", colnames(corto_greenhouse_up_merge))
+colnames(corto_greenhouse_down_merge) <- gsub(".x$", ".tol.down", colnames(corto_greenhouse_down_merge))
+colnames(corto_greenhouse_down_merge) <- gsub(".y$", ".sens.down", colnames(corto_greenhouse_down_merge))
 
 # function to concatenate two columns containing strings, but only if they are not identical
 # finally order table by MapMan BinCode
-corto_greenhouse_up_merge_ordered <- func_concatenate_two_columns(corto_greenhouse_up_merge, "BinName.tol.up", "BinName.sens.up")
-corto_greenhouse_down_merge_ordered <- func_concatenate_two_columns(corto_greenhouse_down_merge, "BinName.tol.down", "BinName.sens.down")
+
+corto_greenhouse_up_merge_ordered <- func_order_by_MapMan_BinCode(
+                                        func_concatenate_two_columns(
+                                          corto_greenhouse_up_merge, "BinName.tol.up", "BinName.sens.up"), 
+                                        "Bin")
+
+corto_greenhouse_down_merge_ordered <- func_order_by_MapMan_BinCode(
+                                            func_concatenate_two_columns(
+                                              corto_greenhouse_down_merge, "BinName.tol.down", "BinName.sens.down"), 
+                                            "Bin")
 ```
 
 
@@ -137,8 +147,12 @@ colnames(corto_field_down_merge) <- gsub(".y$",  ".sens.down", colnames(corto_fi
 
 # function to concatenate two columns containing strings, but only if they are not identical
 # finally order table by MapMan BinCode
-corto_field_up_merge_ordered <- func_concatenate_two_columns(corto_field_up_merge, "BinName.tol.up", "BinName.sens.up")
-corto_field_down_merge_ordered <- func_concatenate_two_columns(corto_field_down_merge, "BinName.tol.down", "BinName.sens.down")
+corto_field_up_merge_ordered <- func_order_by_MapMan_BinCode(
+                                  func_concatenate_two_columns(corto_field_up_merge, "BinName.tol.up", "BinName.sens.up"), 
+                                  "Bin")
+corto_field_down_merge_ordered <- func_order_by_MapMan_BinCode(
+                                    func_concatenate_two_columns(corto_field_down_merge, "BinName.tol.down", "BinName.sens.down"),
+                                    "Bin")
 ```
 
 
@@ -158,8 +172,12 @@ colnames(corto_field_T_merge) <- gsub(".y$",  ".field.stress.T", colnames(corto_
 
 # function to concatenate two columns containing strings, but only if they are not identical
 # finally order table by MapMan BinCode
-corto_greenhouse_T_merge_ordered <- func_concatenate_two_columns(corto_greenhouse_T_merge, "BinName.gh.control.T", "BinName.gh.stress.T")
-corto_field_T_merge_ordered <- func_concatenate_two_columns(corto_field_T_merge, "BinName.field.control.T", "BinName.field.stress.T")
+corto_greenhouse_T_merge_ordered <- func_order_by_MapMan_BinCode(
+                                      func_concatenate_two_columns(corto_greenhouse_T_merge, "BinName.gh.control.T", "BinName.gh.stress.T"),
+                                      "Bin")
+corto_field_T_merge_ordered <- func_order_by_MapMan_BinCode(
+                                  func_concatenate_two_columns(corto_field_T_merge, "BinName.field.control.T", "BinName.field.stress.T"),
+                                  "Bin")
 ```
 
 ## Merge CorTo results from different tolerance comparisons: S>T
@@ -178,8 +196,12 @@ colnames(corto_field_S_merge) <- gsub(".y$",  ".field.stress.S", colnames(corto_
 
 # function to concatenate two columns containing strings, but only if they are not identical
 # finally order table by MapMan BinCode
-corto_greenhouse_S_merge_ordered <- func_concatenate_two_columns(corto_greenhouse_S_merge, "BinName.gh.control.S", "BinName.gh.stress.S")
-corto_field_S_merge_ordered <- func_concatenate_two_columns(corto_field_S_merge, "BinName.field.control.S", "BinName.field.stress.S")
+corto_greenhouse_S_merge_ordered <- func_order_by_MapMan_BinCode(
+                                      func_concatenate_two_columns(corto_greenhouse_S_merge, "BinName.gh.control.S", "BinName.gh.stress.S"),
+                                      "Bin")
+corto_field_S_merge_ordered <- func_order_by_MapMan_BinCode(
+                                  func_concatenate_two_columns(corto_field_S_merge, "BinName.field.control.S", "BinName.field.stress.S"),
+                                  "Bin")
 ```
 
 
@@ -196,7 +218,10 @@ colnames(corto_greenhouse_merge2) <- gsub(".y$",  ".up", colnames(corto_greenhou
 
 # function to concatenate two columns containing strings, but only if they are not identical
 # finally order table by MapMan BinCode
-corto_greenhouse_merge2_ordered <- func_concatenate_two_columns(corto_greenhouse_merge2, "BinName.down", "BinName.up")
+corto_greenhouse_merge2_ordered <- func_order_by_MapMan_BinCode(
+                                      func_concatenate_two_columns(corto_greenhouse_merge2, "BinName.down", "BinName.up"),
+                                      "Bin")
+
 colnames(corto_greenhouse_merge2_ordered)
 
 corto_greenhouse_merge2_ordered_part <- corto_greenhouse_merge2_ordered[, c("Bin", "BinName",
@@ -204,7 +229,7 @@ corto_greenhouse_merge2_ordered_part <- corto_greenhouse_merge2_ordered[, c("Bin
                                                                             "z.score.bh.sens.up",
                                                                             "z.score.bh.tol.down",
                                                                             "z.score.bh.sens.down")]
-head(corto_greenhouse_merge2_ordered_part)
+pander(head(corto_greenhouse_merge2_ordered_part))
 ```
 
 
@@ -220,7 +245,9 @@ colnames(corto_field_merge2) <- gsub(".y$",  ".up", colnames(corto_field_merge2)
 
 # function to concatenate two columns containing strings, but only if they are not identical
 # finally order table by MapMan BinCode
-corto_field_merge2_ordered <- func_concatenate_two_columns(corto_field_merge2, "BinName.down", "BinName.up")
+corto_field_merge2_ordered <- func_order_by_MapMan_BinCode(
+                                func_concatenate_two_columns(corto_field_merge2, "BinName.down", "BinName.up"),
+                                "Bin")
 colnames(corto_field_merge2_ordered)
 
 corto_field_merge2_ordered_part <- corto_field_merge2_ordered[, c("Bin", "BinName",
@@ -228,7 +255,7 @@ corto_field_merge2_ordered_part <- corto_field_merge2_ordered[, c("Bin", "BinNam
                                                                             "z.score.bh.sens.up",
                                                                             "z.score.bh.tol.down",
                                                                             "z.score.bh.sens.down")]
-head(corto_field_merge2_ordered_part)
+pander(head(corto_field_merge2_ordered_part))
 ```
 
 # Merge CorTo results from different tolerance comparisons
@@ -244,7 +271,9 @@ colnames(corto_T_merge2) <- gsub(".y$",  ".field", colnames(corto_T_merge2))
 
 # function to concatenate two columns containing strings, but only if they are not identical
 # finally order table by MapMan BinCode
-corto_T_merge2_ordered <- func_concatenate_two_columns(corto_T_merge2, "BinName.gh", "BinName.field")
+corto_T_merge2_ordered <- func_order_by_MapMan_BinCode(
+                            func_concatenate_two_columns(corto_T_merge2, "BinName.gh", "BinName.field"), 
+                            "Bin")
 colnames(corto_T_merge2_ordered)
 
 corto_T_merge2_ordered_part <- corto_T_merge2_ordered[, c("Bin", "BinName",
@@ -252,7 +281,7 @@ corto_T_merge2_ordered_part <- corto_T_merge2_ordered[, c("Bin", "BinName",
                                                           "z.score.bh.gh.stress.T",
                                                           "z.score.bh.field.control.T",
                                                           "z.score.bh.field.stress.T")]
-head(corto_T_merge2_ordered_part)
+pander(head(corto_T_merge2_ordered_part))
 ```
 
 
@@ -268,7 +297,9 @@ colnames(corto_S_merge2) <- gsub(".y$",  ".field", colnames(corto_S_merge2))
 
 # function to concatenate two columns containing strings, but only if they are not identical
 # finally order table by MapMan BinCode
-corto_S_merge2_ordered <- func_concatenate_two_columns(corto_S_merge2, "BinName.gh", "BinName.field")
+corto_S_merge2_ordered <- func_order_by_MapMan_BinCode(
+                            func_concatenate_two_columns(corto_S_merge2, "BinName.gh", "BinName.field"),
+                            "Bin")
 colnames(corto_S_merge2_ordered)
 
 corto_S_merge2_ordered_part <- corto_S_merge2_ordered[, c("Bin", "BinName",
@@ -276,7 +307,7 @@ corto_S_merge2_ordered_part <- corto_S_merge2_ordered[, c("Bin", "BinName",
                                                           "z.score.bh.gh.stress.S",
                                                           "z.score.bh.field.control.S",
                                                           "z.score.bh.field.stress.S")]
-head(corto_S_merge2_ordered_part)
+pander(head(corto_S_merge2_ordered_part))
 ```
 
 
@@ -292,7 +323,9 @@ colnames(corto_tolerance_merge2) <- gsub(".y$",  ".S", colnames(corto_tolerance_
 
 # function to concatenate two columns containing strings, but only if they are not identical
 # finally order table by MapMan BinCode
-corto_tolerance_merge2_ordered <- func_concatenate_two_columns(corto_tolerance_merge2, "BinName.T", "BinName.S")
+corto_tolerance_merge2_ordered <- func_order_by_MapMan_BinCode(
+                                    func_concatenate_two_columns(corto_tolerance_merge2, "BinName.T", "BinName.S"),
+                                    "Bin")
 colnames(corto_tolerance_merge2_ordered)
 
 corto_tolerance_merge2_ordered_part <- corto_tolerance_merge2_ordered[, c("Bin", "BinName",
@@ -304,11 +337,11 @@ corto_tolerance_merge2_ordered_part <- corto_tolerance_merge2_ordered[, c("Bin",
                                                                           "z.score.bh.gh.stress.S",
                                                                           "z.score.bh.field.control.S",
                                                                           "z.score.bh.field.stress.S")]
-head(corto_tolerance_merge2_ordered_part)
+pander(head(corto_tolerance_merge2_ordered_part))
 ```
 
 
-# Thresholds for CorTo plots}
+# Thresholds for CorTo plots
 ```{r thresholds for CorTo plots}
 pval_threshold_weak = 0.05
 pval_threshold_intermed = 0.01
@@ -316,7 +349,7 @@ pval_threshold_strict = 0.001
 
 zscore_threshold_weak = 1.959964
 zscore_threshold_intermed = 2.575829
-zscore_threshold_strict = 3.3
+zscore_threshold_strict = 3.290527
 
 # get respective p-value from z-score
 2*pnorm(-abs(zscore_threshold_weak))
@@ -335,55 +368,54 @@ abs(qnorm(pval_threshold_strict/2))
 # CorTo plot for DGE (control vs. stress) in tolerant and sensitive cultivars separately
 # strict p-value of 0.001 (corresponding to z-score of 3.3)
 # greenhouse
-corto_greenhouse_sig_3_sel <- func_corto_plot(corto_greenhouse_merge2_ordered_part, threshold = 3.3, show_all = FALSE)
-corto_greenhouse_sig_3_sel_all <- func_corto_plot(corto_greenhouse_merge2_ordered_part, threshold = 3.3, show_all = TRUE)
+corto_greenhouse_sig_strict <- func_corto_plot(corto_greenhouse_merge2_ordered_part, 
+                                               threshold = zscore_threshold_strict, show_all = FALSE)
+corto_greenhouse_sig_strict_all <- func_corto_plot(corto_greenhouse_merge2_ordered_part, 
+                                                   threshold = zscore_threshold_strict, show_all = TRUE)
 
-head(corto_greenhouse_sig_3_sel)
-head(corto_greenhouse_sig_3_sel_all)
+pander(head(corto_greenhouse_sig_strict))
+pander(head(corto_greenhouse_sig_strict_all))
 
 # field
-corto_field_sig_3_sel <- func_corto_plot(corto_field_merge2_ordered_part, threshold = 3.3, show_all = FALSE)
-corto_field_sig_3_sel_all <- func_corto_plot(corto_field_merge2_ordered_part, threshold = 3.3, show_all = TRUE)
+corto_field_sig_strict <- func_corto_plot(corto_field_merge2_ordered_part, 
+                                          threshold = zscore_threshold_strict, show_all = FALSE)
+corto_field_sig_strict_all <- func_corto_plot(corto_field_merge2_ordered_part, 
+                                              threshold = zscore_threshold_strict, show_all = TRUE)
+
+# intermediate p-value of 0.01 (corresponding to z-score of 2.58)
+corto_greenhouse_sig_intermed <- func_corto_plot(corto_greenhouse_merge2_ordered_part, 
+                                             threshold = zscore_threshold_intermed, show_all = FALSE)
+corto_field_sig_intermed <- func_corto_plot(corto_field_merge2_ordered_part, 
+                                        threshold = zscore_threshold_intermed, show_all = FALSE)
 
 # weak p-value of 0.05 (corresponding to z-score of 1.96)
-corto_greenhouse_sig_2_sel <- func_corto_plot(corto_greenhouse_merge2_ordered_part, threshold = 1.959964, show_all = FALSE)
-corto_field_sig_2_sel <- func_corto_plot(corto_field_merge2_ordered_part, threshold = 1.959964)
+corto_greenhouse_sig_weak <- func_corto_plot(corto_greenhouse_merge2_ordered_part, 
+                                             threshold = zscore_threshold_weak, show_all = FALSE)
+corto_field_sig_weak <- func_corto_plot(corto_field_merge2_ordered_part, 
+                                        threshold = zscore_threshold_weak, show_all = FALSE)
 
 
 # CorTo plot for DGE comparing tolerant vs. sensitive
 # use the other function because different data structure!
-corto_tolerance_sig_3_sel <- func_corto_plot2(corto_tolerance_merge2_ordered_part, threshold = 3.3)
-corto_tolerance_sig_2_575_sel <- func_corto_plot2(corto_tolerance_merge2_ordered_part, threshold = 2.575)
-corto_tolerance_sig_2_sel <- func_corto_plot2(corto_tolerance_merge2_ordered_part, threshold = 1.959964)
+corto_tolerance_sig_strict <- func_corto_plot2(corto_tolerance_merge2_ordered_part, threshold = zscore_threshold_strict)
+corto_tolerance_sig_intermed <- func_corto_plot2(corto_tolerance_merge2_ordered_part, threshold = zscore_threshold_intermed)
+corto_tolerance_sig_weak <- func_corto_plot2(corto_tolerance_merge2_ordered_part, threshold = zscore_threshold_weak)
 ```
 
 # Heatmaps
-## Heatmap without dendrogram greenhouse p<0.001 (z-score of 3.3)
+## Heatmap without dendrogram greenhouse p_BH<0.001 (z-score of 3.3)
 ```{r heatmap_without_dendrogram_greenhouse_p_smaller_0.001, fig.width=12, fig.height=15, fig.show='asis'}
 
-func_corto_heatmap(corto_data = corto_greenhouse_sig_3_sel[,c(3:6)],
-                     bin_names = corto_greenhouse_sig_3_sel$BinName,
+func_corto_heatmap(corto_data = corto_greenhouse_sig_strict[,c(3:6)],
+                     bin_names = corto_greenhouse_sig_strict$BinName,
                      col_breaks_greenhouse = TRUE,
                      show_col_dend = FALSE, 
                      margins_values = c(8,50) )
 
-pdf("figures/corto_greenhouse_sel.pdf", width=12, height=15)
+pdf("figures/corto_greenhouse_strict.pdf", width=11, height=15)
 
-func_corto_heatmap(corto_data = corto_greenhouse_sig_3_sel[,c(3:6)],
-                     bin_names = corto_greenhouse_sig_3_sel$BinName,
-                     col_breaks_greenhouse = TRUE,
-                     show_col_dend = FALSE, 
-                     margins_values = c(8,50) )
-dev.off()
-```
-
-
-## Heatmap without dendrogram greenhouse p<0.05
-```{r heatmap without dendrogram greenhouse p<0.05}
-pdf("figures/corto_greenhouse_sel_more.pdf", width=12, height=20)
-
-func_corto_heatmap(corto_data = corto_greenhouse_sig_2_sel[,c(3:6)],
-                     bin_names = corto_greenhouse_sig_2_sel$BinName,
+func_corto_heatmap(corto_data = corto_greenhouse_sig_strict[,c(3:6)],
+                     bin_names = corto_greenhouse_sig_strict$BinName,
                      col_breaks_greenhouse = TRUE,
                      show_col_dend = FALSE, 
                      margins_values = c(8,50) )
@@ -391,32 +423,44 @@ dev.off()
 ```
 
 
-## Heatmap without dendrogram field p<0.001 (z-score of 3.3)
+## Heatmap without dendrogram greenhouse pBH<0.01
+```{r heatmap without dendrogram greenhouse pBH<0.01}
+pdf("figures/corto_greenhouse_intermed.pdf", width=12, height=20)
+
+func_corto_heatmap(corto_data = corto_greenhouse_sig_intermed[,c(3:6)],
+                     bin_names = corto_greenhouse_sig_intermed$BinName,
+                     col_breaks_greenhouse = TRUE,
+                     show_col_dend = FALSE, 
+                     margins_values = c(8,50) )
+dev.off()
+```
+
+## Heatmap without dendrogram greenhouse pBH<0.05
+```{r heatmap without dendrogram greenhouse pBH<0.05}
+pdf("figures/corto_greenhouse_weak.pdf", width=12, height=20)
+
+func_corto_heatmap(corto_data = corto_greenhouse_sig_weak[,c(3:6)],
+                     bin_names = corto_greenhouse_sig_weak$BinName,
+                     col_breaks_greenhouse = TRUE,
+                     show_col_dend = FALSE, 
+                     margins_values = c(8,50) )
+dev.off()
+```
+
+
+## Heatmap without dendrogram field pBH<0.001 (z-score of 3.3)
 ```{r heatmap_without_dendrogram_field_p_smaller_0.001, fig.width=12, fig.height=12, fig.show='asis'}
 
-func_corto_heatmap(corto_data = corto_field_sig_3_sel[,c(3:6)],
-                     bin_names = corto_field_sig_3_sel$BinName,
+func_corto_heatmap(corto_data = corto_field_sig_strict[,c(3:6)],
+                     bin_names = corto_field_sig_strict$BinName,
                      col_breaks_greenhouse = TRUE,
                      show_col_dend = FALSE, 
                      margins_values = c(8,50) )
 
-pdf("figures/corto_field_sel.pdf", width=12, height=12)
+pdf("figures/corto_field_strict.pdf", width=12, height=9)
 
-func_corto_heatmap(corto_data = corto_field_sig_3_sel[,c(3:6)],
-                     bin_names = corto_field_sig_3_sel$BinName,
-                     col_breaks_greenhouse = TRUE,
-                     show_col_dend = FALSE, 
-                     margins_values = c(8,50) )
-dev.off()
-```
-
-
-## Heatmap without dendrogram field p<0.05
-```{r heatmap without dendrogram field p<0.05}
-pdf("figures/corto_field_sel_more.pdf", width=12, height=12)
-
-func_corto_heatmap(corto_data = corto_field_sig_2_sel[,c(3:6)],
-                     bin_names = corto_field_sig_2_sel$BinName,
+func_corto_heatmap(corto_data = corto_field_sig_strict[,c(3:6)],
+                     bin_names = corto_field_sig_strict$BinName,
                      col_breaks_greenhouse = TRUE,
                      show_col_dend = FALSE, 
                      margins_values = c(8,50) )
@@ -424,20 +468,61 @@ dev.off()
 ```
 
 
-## Heatmap without dendrogram tol vs. sens p<0.001
-```{r heatmap_without_dendrogram_tol_vs_sens_p_smaller_0.001, fig.width=12, fig.height=14, fig.show='asis'}
+## Heatmap without dendrogram field pBH<0.01
+```{r heatmap without dendrogram field pBH<0.01}
+pdf("figures/corto_field_intermed.pdf", width=12, height=12)
 
-func_corto_heatmap(corto_data = corto_tolerance_sig_3_sel[,c(3:10)],
-                     bin_names = corto_tolerance_sig_3_sel$BinName,
+func_corto_heatmap(corto_data = corto_field_sig_intermed[,c(3:6)],
+                     bin_names = corto_field_sig_intermed$BinName,
+                     col_breaks_greenhouse = TRUE,
+                     show_col_dend = FALSE, 
+                     margins_values = c(8,50) )
+dev.off()
+```
+
+
+## Heatmap without dendrogram field pBH<0.05
+```{r heatmap without dendrogram field pBH<0.05}
+pdf("figures/corto_field_weak.pdf", width=12, height=12)
+
+func_corto_heatmap(corto_data = corto_field_sig_weak[,c(3:6)],
+                     bin_names = corto_field_sig_weak$BinName,
+                     col_breaks_greenhouse = TRUE,
+                     show_col_dend = FALSE, 
+                     margins_values = c(8,50) )
+dev.off()
+```
+
+
+## Heatmap without dendrogram tol vs. sens pBH<0.001
+```{r heatmap without dendrogram tol vs sens pBH<0.001, fig.width=12, fig.height=14, fig.show='asis'}
+
+func_corto_heatmap(corto_data = corto_tolerance_sig_strict[,c(3:10)],
+                     bin_names = corto_tolerance_sig_strict$BinName,
                      col_breaks_greenhouse = TRUE,
                      show_col_dend = FALSE, 
                      margins_values = c(10,50),
                      srtCol_value = 270)
 
-pdf("figures/corto_tolerance_sel.pdf", width=12, height=14)
+pdf("figures/corto_tolerance_strict.pdf", width=16, height=14)
 
-func_corto_heatmap(corto_data = corto_tolerance_sig_3_sel[,c(3:10)],
-                     bin_names = corto_tolerance_sig_3_sel$BinName,
+func_corto_heatmap(corto_data = corto_tolerance_sig_strict[,c(3:10)],
+                     bin_names = corto_tolerance_sig_strict$BinName,
+                     col_breaks_greenhouse = TRUE,
+                     show_col_dend = FALSE, 
+                     margins_values = c(10,70),
+                     srtCol_value = 270)
+dev.off()
+```
+
+
+## Heatmap without dendrogram tol vs. sens pBH<0.01
+```{r heatmap without dendrogram tol vs sens pBH<0.01, fig.width=12, fig.height=14, fig.show='asis'}
+
+pdf("figures/corto_tolerance_intermed.pdf", width=12, height=16)
+
+func_corto_heatmap(corto_data = corto_tolerance_sig_intermed[,c(3:10)],
+                     bin_names = corto_tolerance_sig_intermed$BinName,
                      col_breaks_greenhouse = TRUE,
                      show_col_dend = FALSE, 
                      margins_values = c(10,50),
@@ -446,19 +531,20 @@ dev.off()
 ```
 
 
-## Heatmap without dendrogram tol vs. sens p<0.05
-```{r heatmap_without_dendrogram_tol_vs_sens_p_smaller_0.05, fig.width=12, fig.height=14, fig.show='asis'}
+## Heatmap without dendrogram tol vs. sens pBH<0.05
+```{r heatmap without dendrogram tol vs sens pBH<0.05, fig.width=12, fig.height=14, fig.show='asis'}
 
-pdf("figures/corto_tolerance_sel_more.pdf", width=12, height=14)
+pdf("figures/corto_tolerance_weak.pdf", width=12, height=20)
 
-func_corto_heatmap(corto_data = corto_tolerance_sig_2_sel[,c(3:10)],
-                     bin_names = corto_tolerance_sig_2_sel$BinName,
+func_corto_heatmap(corto_data = corto_tolerance_sig_weak[,c(3:10)],
+                     bin_names = corto_tolerance_sig_weak$BinName,
                      col_breaks_greenhouse = TRUE,
                      show_col_dend = FALSE, 
                      margins_values = c(10,50),
                      srtCol_value = 270)
 dev.off()
 ```
+
 
 # save workspace
 ```{r save workspace}
