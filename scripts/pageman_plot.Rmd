@@ -52,6 +52,10 @@ pageman_greenhouse <- read.table("pageman/greenhouse_tolerance.pmd", sep="\t", s
 pageman_field <- read.table("pageman/field_tolerance.pmd", sep="\t", skip=1, quote="")
 pageman_tolerance <- read.table("pageman/field_greenhouse_tol_vs_sens.pmd", sep="\t", skip=1, quote="")
 
+pageman_greenhouse_sig <- read.table("pageman/pageman_greenhouse_tolerance_oct_2015.pmd", sep="\t", skip=1, quote="")
+pageman_field_sig <- read.table("pageman/field_tolerance.pmd", sep="\t", skip=1, quote="")
+pageman_tolerance_sig <- read.table("pageman/field_greenhouse_tol_vs_sens.pmd", sep="\t", skip=1, quote="")
+
 head(pageman_tolerance)
 ```
 
@@ -63,6 +67,12 @@ pageman_greenhouse_2_0 <- read.table("pageman/greenhouse_tolerance_2015_08_26_2_
 pageman_greenhouse_3_0 <- read.table("pageman/greenhouse_tolerance_2015_08_26_3_0.pmd", sep="\t", skip=1, quote="")
 pageman_greenhouse_3_3 <- read.table("pageman/greenhouse_tolerance_2015_08_26_3_3.pmd", sep="\t", skip=1, quote="")
 
+pageman_greenhouse_1_0 <- read.table("pageman/greenhouse_tolerance_2015_09_01_1_0.pmd", sep="\t", skip=1, quote="")
+pageman_greenhouse_1_5 <- read.table("pageman/greenhouse_tolerance_2015_09_01_1_5.pmd", sep="\t", skip=1, quote="")
+pageman_greenhouse_2_0 <- read.table("pageman/greenhouse_tolerance_2015_09_01_2_0.pmd", sep="\t", skip=1, quote="")
+pageman_greenhouse_2_5 <- read.table("pageman/greenhouse_tolerance_2015_09_01_2_5.pmd", sep="\t", skip=1, quote="")
+pageman_greenhouse_3_0 <- read.table("pageman/greenhouse_tolerance_2015_09_01_3_0.pmd", sep="\t", skip=1, quote="")
+pageman_greenhouse_3_5 <- read.table("pageman/greenhouse_tolerance_2015_09_01_3_5.pmd", sep="\t", skip=1, quote="")
 
 head(pageman_tolerance)
 ```
@@ -250,6 +260,60 @@ pageman_greenhouse_1_0_sig_3_sel <- func_pageman_plot(pageman_greenhouse_1_0, th
 pageman_greenhouse_2_0_sig_3_sel <- func_pageman_plot(pageman_greenhouse_2_0, threshold = 3.3, show_all = FALSE)
 pageman_greenhouse_3_0_sig_3_sel <- func_pageman_plot(pageman_greenhouse_3_0, threshold = 3.3, show_all = FALSE)
 pageman_greenhouse_3_3_sig_3_sel <- func_pageman_plot(pageman_greenhouse_3_3, threshold = 3.3, show_all = FALSE)
+
+# threshold: z-score of 1.95 or p-value < 0.05
+pageman_greenhouse_1_0_sig_2_sel <- func_pageman_plot(pageman_greenhouse_1_0, threshold = 1.959964, show_all = FALSE)
+pageman_greenhouse_2_0_sig_2_sel <- func_pageman_plot(pageman_greenhouse_2_0, threshold = 1.959964, show_all = FALSE)
+pageman_greenhouse_3_0_sig_2_sel <- func_pageman_plot(pageman_greenhouse_3_0, threshold = 1.959964, show_all = FALSE)
+pageman_greenhouse_3_3_sig_2_sel <- func_pageman_plot(pageman_greenhouse_3_3, threshold = 1.959964, show_all = FALSE)
+```
+
+
+## Heatmap without dendrogram greenhouse p<0.05
+```{r compare different ORA cutoffs from PageMan - heatmap p<0.05}
+pdf("figures/pageman_greenhouse_1_0_sel_more_2015_09_01.pdf", width=12, height=20)
+
+func_pageman_heatmap(pageman_data = pageman_greenhouse_1_0_sig_2_sel[,c(3:7)],
+                     bin_names = pageman_greenhouse_1_0_sig_2_sel$bin_name,
+                     col_breaks_greenhouse = TRUE,
+                     show_col_dend = FALSE, 
+                     margins_values = c(8,50) )
+dev.off()
+
+pdf("figures/pageman_greenhouse_2_0_sel_more_2015_09_01.pdf", width=12, height=20)
+
+func_pageman_heatmap(pageman_data = pageman_greenhouse_2_0_sig_2_sel[,c(3:7)],
+                     bin_names = pageman_greenhouse_2_0_sig_2_sel$bin_name,
+                     col_breaks_greenhouse = TRUE,
+                     show_col_dend = FALSE, 
+                     margins_values = c(8,50) )
+dev.off()
+
+pdf("figures/pageman_greenhouse_3_0_sel_more_2015_09_01.pdf", width=12, height=20)
+
+func_pageman_heatmap(pageman_data = pageman_greenhouse_3_0_sig_2_sel[,c(3:7)],
+                     bin_names = pageman_greenhouse_3_0_sig_2_sel$bin_name,
+                     col_breaks_greenhouse = TRUE,
+                     show_col_dend = FALSE, 
+                     margins_values = c(8,50) )
+dev.off()
+```
+
+
+# New Pageman data from October 2015
+```{r new Pageman data from October 2015}
+pageman_greenhouse_sig_2_sel_new <- func_pageman_plot(pageman_greenhouse_sig, threshold = 1.9, show_all = TRUE)
+dim(pageman_greenhouse_sig_2_sel_new)
+
+pdf("figures/pageman_greenhouse_sig_2_sel_new.pdf", width=11, height=9)
+
+func_pageman_heatmap(pageman_data = pageman_greenhouse_sig_2_sel_new[,c(3:7)],
+                     bin_names = pageman_greenhouse_sig_2_sel_new$bin_name,
+                     col_breaks_greenhouse = FALSE,
+                     show_col_dend = FALSE, 
+                     margins_values = c(8,40) )
+dev.off()
+
 ```
 
 
