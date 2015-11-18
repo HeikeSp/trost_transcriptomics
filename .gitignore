@@ -12,3 +12,6 @@
 *.csv
 *.docx
 *.pmd*
+*.tar.*
+*.tar
+*.cdr
