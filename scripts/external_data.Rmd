@@ -1,0 +1,1589 @@
+---
+title: "External Transcriptomics Data"
+author: "Heike Sprenger"
+date: "Tuesday, December 15, 2015"
+output:
+  html_document:
+    highlight: tango
+    number_section: yes
+    theme: cerulean
+    toc: yes
+    toc_depth: 4
+---
+
+# Input: External transcriptomics data from literature
+
+# Set working directory
+```{r set working directory}
+#setwd("~/work/repos/trost_transcriptomics")
+#setwd("D:/work/repos/trost_transcriptomics")
+```
+
+
+# Load workspace, packages and scripts
+```{r load workspace, message=FALSE}
+# load packages
+library(knitr)
+library(VennDiagram)
+library(pander)
+library(gdata)
+library(RColorBrewer)
+
+# set options for pander
+panderOptions('table.split.table', 200)
+
+# set options for knitr
+opts_chunk$set(fig.width=5, fig.height=5, cache=FALSE, highlight = TRUE, fig.show="asis")
+opts_knit$set(root.dir = '../')
+
+# load workspace
+#load("external_data.RData")
+```
+
+
+# Source R functions
+```{r source R functions}
+source("../functions/func_venn_diagram.R")
+source("../functions/func_phyper.R")
+```
+
+# Load tables from PGSC and MapMan
+```{r load tables from PGSC and MapMan}
+merge_mapman_pgsc <- read.table("data/merge_mapman_pgsc.txt", header=T, sep = "\t")
+pgsc <- read.table("data/PGSC_DM_v3.4_g2t2c2p2func_edit.txt", header=F, sep = "\t")
+
+colnames(pgsc) <- c("PGSC_DMG", "PGSC_DMT", "PGSC_DMC", "PGSC_DMP", "function")
+head(pgsc)
+```
+
+
+# Load data from DGE analysis
+```{r load data from DGE analysis}
+# control vs. stress (up/down)
+final_greenhouse_all_up <- read.table("output/final_dge_greenhouse_all_up.txt", sep = "\t", header = T, quote = "\"")
+final_greenhouse_all_down <- read.table("output/final_dge_greenhouse_all_down.txt", sep = "\t", header = T, quote = "\"")
+final_field_all_up <- read.table("output/final_dge_field_all_up.txt", sep = "\t", header = T, quote = "\"")
+final_field_all_down <- read.table("output/final_dge_field_all_down.txt", sep = "\t", header = T, quote = "\"")
+
+# tolerant > sensitive (T)
+final_greenhouse_control_T <- read.table("output/final_dge_greenhouse_control_T.txt", sep = "\t", header = T, quote = "\"")
+final_greenhouse_stress_T <- read.table("output/final_dge_greenhouse_stress_T.txt", sep = "\t", header = T, quote = "\"")
+final_field_control_T <- read.table("output/final_dge_field_control_T.txt", sep = "\t", header = T, quote = "\"")
+final_field_stress_T <- read.table("output/final_dge_field_stress_T.txt", sep = "\t", header = T, quote = "\"")
+
+# sensitive > tolerant (S)
+final_greenhouse_control_S <- read.table("output/final_dge_greenhouse_control_S.txt", sep = "\t", header = T, quote = "\"")
+final_greenhouse_stress_S <- read.table("output/final_dge_greenhouse_stress_S.txt", sep = "\t", header = T, quote = "\"")
+final_field_control_S <- read.table("output/final_dge_field_control_S.txt", sep = "\t", header = T, quote = "\"")
+final_field_stress_S <- read.table("output/final_dge_field_stress_S.txt", sep = "\t", header = T, quote = "\"")
+```
+
+
+## Overlap of up-regulated genes
+* 48 genes
+* 81 proteins
+
+```{r Overlap of up-regulated genes}
+# DMP
+final_all_up_overlap_dmp <- unique(intersect(final_greenhouse_all_up$pgsc_dmp, final_field_all_up$pgsc_dmp))
+length(final_all_up_overlap_dmp)
+
+# DMG
+final_all_up_overlap <- unique(intersect(final_greenhouse_all_up$pgsc_dmg, final_field_all_up$pgsc_dmg))
+length(final_all_up_overlap)
+``` 
+
+
+## Overlap of down-regulated genes
+* 54 genes
+* 87 proteins
+
+```{r Overlap of down-regulated genes}
+# DMP
+final_all_down_overlap_dmp <- unique(intersect(final_greenhouse_all_down$pgsc_dmp, final_field_all_down$pgsc_dmp))
+length(final_all_down_overlap_dmp)
+
+# DMG
+final_all_down_overlap <- unique(intersect(final_greenhouse_all_down$pgsc_dmg, final_field_all_down$pgsc_dmg))
+length(final_all_down_overlap)
+``` 
+
+## Overlap of all T>S
+* 126 genes
+* 187 proteins
+
+```{r Overlap of all Tolerant-specific genes}
+# DMP
+final_greenhouse_T_overlap_dmp <- unique(intersect(final_greenhouse_control_T$pgsc_dmp, final_greenhouse_stress_T$pgsc_dmp))
+final_field_T_overlap_dmp <- unique(intersect(final_field_control_T$pgsc_dmp, final_field_stress_T$pgsc_dmp))
+final_T_overlap_dmp <- intersect(final_field_T_overlap_dmp, final_greenhouse_T_overlap_dmp)
+length(final_T_overlap_dmp)
+
+# DMG
+final_greenhouse_T_overlap <- unique(intersect(final_greenhouse_control_T$pgsc_dmg, final_greenhouse_stress_T$pgsc_dmg))
+final_field_T_overlap <- unique(intersect(final_field_control_T$pgsc_dmg, final_field_stress_T$pgsc_dmg))
+final_T_overlap <- intersect(final_field_T_overlap, final_greenhouse_T_overlap)
+length(final_T_overlap)
+```
+
+
+## Overlap of all S>T
+* 122 genes
+* 180 proteins
+
+```{r Overlap of all Sensitive-specific genes}
+# DMP
+final_greenhouse_S_overlap_dmp <- unique(intersect(final_greenhouse_control_S$pgsc_dmp, final_greenhouse_stress_S$pgsc_dmp))
+final_field_S_overlap_dmp <- unique(intersect(final_field_control_S$pgsc_dmp, final_field_stress_S$pgsc_dmp))
+final_S_overlap_dmp <- intersect(final_field_S_overlap_dmp, final_greenhouse_S_overlap_dmp)
+length(final_S_overlap_dmp)
+
+# DMG
+final_greenhouse_S_overlap <- unique(intersect(final_greenhouse_control_S$pgsc_dmg, final_greenhouse_stress_S$pgsc_dmg))
+final_field_S_overlap <- unique(intersect(final_field_control_S$pgsc_dmg, final_field_stress_S$pgsc_dmg))
+final_S_overlap <- intersect(final_field_S_overlap, final_greenhouse_S_overlap)
+length(final_S_overlap)
+```
+
+
+# Massa2013
+[Massa et al. 2013:](https://dl.sciencesocieties.org/publications/tpg/abstracts/6/3/plantgenome2013.05.0014)
+**Abiotic and Biotic Stress Responses in Solanum tuberosum Group Phureja DM1-3 516 R44 as Measured through Whole Transcriptome Sequencing**
+
+```{r Massa2013}
+# number of pairwise comparisons (from Table 1 in Paper)
+massa2013_total_abiotic <- round(mean(c(19247, 19042, 17422)),0)
+massa2013_total_biotic <- round(mean(c(19184, 17453, 19651, 19649)),0)
+massa2013_total_hormones <- round(mean(c(18428, 17535, 18230)),0)
+
+massa2013_total <- round(mean(c(massa2013_total_abiotic, 
+                                massa2013_total_biotic, 
+                                massa2013_total_hormones)), 0)
+```
+
+
+## Massa2013 up-regulated genes
+* abiotic: 1 to 1059 (1059)
+* biotic: 1060 to 1396 (337)
+* hormones: 1397 to 1789 (393)
+
+```{r Massa2013 up-regulated genes}
+massa2013_S2 <- read.xls("data/external/plantgenome2013.05.0014-supplement2.xls", sheet = 2)
+massa2013_S2 <- subset(massa2013_S2, select=-c(X.1,X.2)) # remove last two columns (empty)
+
+massa2013_S2_abiotic <- massa2013_S2[1:1059,-1]
+massa2013_S2_biotic <- massa2013_S2[1060:1396,-1]
+massa2013_S2_hormones <- massa2013_S2[1397:1789,-1]
+
+venn.plot <- func_venn_diagram_3(massa2013_S2_abiotic$Gene.ID, 
+                                 massa2013_S2_biotic$Gene.ID, 
+                                 massa2013_S2_hormones$Gene.ID,
+                                 lab1="abiotic", lab2="biotic", lab3 = "hormones")
+plot.new()
+grid.draw(venn.plot)
+```
+
+
+## Massa2013: down-regulated genes
+* abiotic: 1 to 747 (747)
+* biotic: 748 to 1789 (1042)
+* hormones: 1790 to 2312 (523)
+
+```{r Massa2013 down-regulated genes}
+massa2013_S3 <- read.xls("data/external/plantgenome2013.05.0014-supplement2.xls", sheet = 3)
+
+massa2013_S3_abiotic <- massa2013_S3[1:747,-1]
+massa2013_S3_biotic <- massa2013_S3[748:1789,-1]
+massa2013_S3_hormones <- massa2013_S3[1790:2312,-1]
+
+venn.plot <- func_venn_diagram_3(massa2013_S3_abiotic$Gene.ID, 
+                                 massa2013_S3_biotic$Gene.ID, 
+                                 massa2013_S3_hormones$Gene.ID,
+                                 lab1="abiotic", lab2="biotic", lab3 = "hormones")
+plot.new()
+grid.draw(venn.plot)
+```
+
+
+## Overlap of drought-responsive genes with Massa2013: Greenhouse
+```{r overlap of drought-responsive genes with Massa2013 Greenhouse}
+venn.plot <- func_venn_diagram_3(unique(final_greenhouse_all_down$pgsc_dmg),
+                                 massa2013_S2_abiotic$Gene.ID,
+                                 massa2013_S3_abiotic$Gene.ID,
+                                 lab1="greenhouse down", 
+                                 lab2 = "abiotic up", lab3 = "abiotic down")
+plot.new()
+grid.draw(venn.plot)
+
+venn.plot <- func_venn_diagram_3(unique(final_greenhouse_all_up$pgsc_dmg),
+                                 massa2013_S2_abiotic$Gene.ID,
+                                 massa2013_S3_abiotic$Gene.ID,
+                                 lab1="greenhouse up", 
+                                 lab2 = "abiotic up", lab3 = "abiotic down")
+plot.new()
+grid.draw(venn.plot)
+```
+
+
+## Overlap of drought-responsive genes with Massa2013: Field
+```{r overlap of drought-responsive genes with Massa2013 Field}
+venn.plot <- func_venn_diagram_3(unique(final_field_all_down$pgsc_dmg),
+                                 massa2013_S2_abiotic$Gene.ID,
+                                 massa2013_S3_abiotic$Gene.ID,
+                                 lab1="field down", 
+                                 lab2 = "abiotic up", lab3 = "abiotic down")
+plot.new()
+grid.draw(venn.plot)
+
+venn.plot <- func_venn_diagram_3(unique(final_field_all_up$pgsc_dmg),
+                                 massa2013_S2_abiotic$Gene.ID,
+                                 massa2013_S3_abiotic$Gene.ID,
+                                 lab1="field up", 
+                                 lab2 = "abiotic up", lab3 = "abiotic down")
+plot.new()
+grid.draw(venn.plot)
+```
+
+
+## Overlap of drought-responsive genes with Massa2013 all: UP
+```{r overlap of drought-responsive genes with Massa2013 all UP}
+# ALL
+venn.plot <- func_venn_diagram_3(final_all_up_overlap,
+                                 massa2013_S2$Gene.ID,
+                                 massa2013_S3$Gene.ID,
+                                 lab1 = "overlap up", 
+                                 lab2 = "Massa up", lab3 = "Massa down")
+plot.new()
+grid.draw(venn.plot)
+
+# Hypergeometric test
+# UP
+func_phyper(Set1 = massa2013_S2$Gene.ID,
+            Set2 = final_all_up_overlap,
+            nTotal = massa2013_total)
+# 0.8547331
+
+# DOWN
+func_phyper(Set1 = massa2013_S3$Gene.ID,
+            Set2 = final_all_up_overlap,
+            nTotal = massa2013_total)
+# 0.01292436
+```
+
+
+## Overlap of drought-responsive genes with Massa2013 abiotic: UP
+```{r overlap of drought-responsive genes with Massa2013 abiotic UP}
+venn.plot <- func_venn_diagram_3(final_all_up_overlap,
+                                 massa2013_S2_abiotic$Gene.ID,
+                                 massa2013_S3_abiotic$Gene.ID,
+                                 lab1 = "overlap up", 
+                                 lab2 = "abiotic up", lab3 = "abiotic down")
+plot.new()
+grid.draw(venn.plot)
+
+# Hypergeometric test
+# UP
+func_phyper(Set1 = massa2013_S2_abiotic$Gene.ID,
+            Set2 = final_all_up_overlap,
+            nTotal = massa2013_total_abiotic)
+# 0.5209481
+
+# DOWN
+func_phyper(Set1 = massa2013_S3_abiotic$Gene.ID,
+            Set2 = final_all_up_overlap,
+            nTotal = massa2013_total_abiotic)
+# 1.705973e-05
+```
+
+## Overlap of drought-responsive genes with Massa2013 biotic: UP
+```{r overlap of drought-responsive genes with Massa2013 biotic UP}
+venn.plot <- func_venn_diagram_3(final_all_up_overlap,
+                                 massa2013_S2_biotic$Gene.ID,
+                                 massa2013_S3_biotic$Gene.ID,
+                                 lab1 = "overlap up", 
+                                 lab2 = "biotic up", lab3 = "biotic down")
+plot.new()
+grid.draw(venn.plot)
+
+# Hypergeometric test
+# UP
+func_phyper(Set1 = massa2013_S2_biotic$Gene.ID,
+            Set2 = final_all_up_overlap,
+            nTotal = massa2013_total_biotic)
+# 1
+
+# DOWN
+func_phyper(Set1 = massa2013_S3_biotic$Gene.ID,
+            Set2 = final_all_up_overlap,
+            nTotal = massa2013_total_biotic)
+# 0.7482918
+```
+
+## Overlap of drought-responsive genes with Massa2013 hormones: UP
+```{r overlap of drought-responsive genes with Massa2013 hormones UP}
+venn.plot <- func_venn_diagram_3(final_all_up_overlap,
+                                 massa2013_S2_hormones$Gene.ID,
+                                 massa2013_S3_hormones$Gene.ID,
+                                 lab1 = "overlap up", 
+                                 lab2 = "hormones up", lab3 = "hormones down")
+plot.new()
+grid.draw(venn.plot)
+
+# Hypergeometric test
+# UP
+func_phyper(Set1 = massa2013_S2_hormones$Gene.ID,
+            Set2 = final_all_up_overlap,
+            nTotal = massa2013_total_hormones)
+# 0.6525746
+
+# DOWN
+func_phyper(Set1 = massa2013_S3_hormones$Gene.ID,
+            Set2 = final_all_up_overlap,
+            nTotal = massa2013_total_hormones)
+# 0.40676
+```
+
+## Overlap of drought-responsive genes with Massa2013 all: DOWN
+```{r overlap of drought-responsive genes with Massa2013 all DOWN}
+venn.plot <- func_venn_diagram_3(final_all_down_overlap,
+                                 massa2013_S2$Gene.ID,
+                                 massa2013_S3$Gene.ID,
+                                 lab1 = "overlap down", 
+                                 lab2 = "Massa up", lab3 = "Massa down")
+plot.new()
+grid.draw(venn.plot)
+
+# Hypergeometric test
+# UP
+func_phyper(Set1 = massa2013_S2$Gene.ID,
+            Set2 = final_all_down_overlap,
+            nTotal = massa2013_total)
+# 0.07204052
+
+# DOWN
+func_phyper(Set1 = massa2013_S3$Gene.ID,
+            Set2 = final_all_down_overlap,
+            nTotal = massa2013_total)
+# 0.06687641
+```
+
+
+## Overlap of drought-responsive genes with Massa2013 abiotic: DOWN
+```{r overlap of drought-responsive genes with Massa2013 abiotic DOWN}
+venn.plot <- func_venn_diagram_3(final_all_down_overlap,
+                                 massa2013_S2_abiotic$Gene.ID,
+                                 massa2013_S3_abiotic$Gene.ID,
+                                 lab1 = "overlap down", 
+                                 lab2 = "abiotic up", lab3 = "abiotic down")
+plot.new()
+grid.draw(venn.plot)
+
+# Hypergeometric test
+# UP
+func_phyper(Set1 = massa2013_S2_abiotic$Gene.ID,
+            Set2 = final_all_down_overlap,
+            nTotal = massa2013_total_abiotic)
+# 0.6016343
+
+# DOWN
+func_phyper(Set1 = massa2013_S3_abiotic$Gene.ID,
+            Set2 = final_all_down_overlap,
+            nTotal = massa2013_total_abiotic)
+# 0.0002752413
+```
+
+## Overlap of drought-responsive genes with Massa2013 biotic: DOWN
+```{r overlap of drought-responsive genes with Massa2013 biotic DOWN}
+venn.plot <- func_venn_diagram_3(final_all_down_overlap,
+                                 massa2013_S2_biotic$Gene.ID,
+                                 massa2013_S3_biotic$Gene.ID,
+                                 lab1 = "overlap down", 
+                                 lab2 = "biotic up", lab3 = "biotic down")
+plot.new()
+grid.draw(venn.plot)
+
+# Hypergeometric test
+# UP
+func_phyper(Set1 = massa2013_S2_biotic$Gene.ID,
+            Set2 = final_all_down_overlap,
+            nTotal = massa2013_total_biotic)
+# 0.0003771923
+
+# DOWN
+func_phyper(Set1 = massa2013_S3_biotic$Gene.ID,
+            Set2 = final_all_down_overlap,
+            nTotal = massa2013_total_biotic)
+# 0.8042282
+```
+
+## Overlap of drought-responsive genes with Massa2013 hormones: DOWN
+```{r overlap of drought-responsive genes with Massa2013 hormones DOWN}
+venn.plot <- func_venn_diagram_3(final_all_down_overlap,
+                                 massa2013_S2_hormones$Gene.ID,
+                                 massa2013_S3_hormones$Gene.ID,
+                                 lab1 = "overlap down", 
+                                 lab2 = "hormones up", lab3 = "hormones down")
+plot.new()
+grid.draw(venn.plot)
+
+# Hypergeometric test
+# UP
+func_phyper(Set1 = massa2013_S2_hormones$Gene.ID,
+            Set2 = final_all_down_overlap,
+            nTotal = massa2013_total_hormones)
+# 1
+
+# DOWN
+func_phyper(Set1 = massa2013_S3_hormones$Gene.ID,
+            Set2 = final_all_down_overlap,
+            nTotal = massa2013_total_hormones)
+# 0.07073592
+```
+
+## Overlap of tolerance-specific genes with Massa2013 all: T>S
+```{r overlap of tolerance-specific genes with Massa2013 all T}
+venn.plot <- func_venn_diagram_3(final_T_overlap,
+                                 massa2013_S2$Gene.ID,
+                                 massa2013_S3$Gene.ID,
+                                 lab1 = "T>S", 
+                                 lab2 = "Massa up", lab3 = "Massa down")
+plot.new()
+grid.draw(venn.plot)
+
+# Hypergeometric test
+# UP
+func_phyper(Set1 = massa2013_S2$Gene.ID,
+            Set2 = final_T_overlap,
+            nTotal = massa2013_total)
+# 0.965432
+
+# DOWN
+func_phyper(Set1 = massa2013_S3$Gene.ID,
+            Set2 = final_T_overlap,
+            nTotal = massa2013_total)
+# 0.9999912
+```
+
+
+## Overlap of tolerance-specific genes with Massa2013 abiotic: T>S
+```{r overlap of tolerance-specific genes with Massa2013 abiotic T}
+venn.plot <- func_venn_diagram_3(final_T_overlap,
+                                 massa2013_S2_abiotic$Gene.ID,
+                                 massa2013_S3_abiotic$Gene.ID,
+                                 lab1 = "T>S", 
+                                 lab2 = "abiotic up", lab3 = "abiotic down")
+plot.new()
+grid.draw(venn.plot)
+
+# Hypergeometric test
+# UP
+func_phyper(Set1 = massa2013_S2_abiotic$Gene.ID,
+            Set2 = final_T_overlap,
+            nTotal = massa2013_total_abiotic)
+# 0.933656
+
+# DOWN
+func_phyper(Set1 = massa2013_S3$Gene.ID,
+            Set2 = final_T_overlap,
+            nTotal = massa2013_total)
+# 0.9999912
+```
+
+## Overlap of tolerance-specific genes with Massa2013 biotic: T>S
+```{r overlap of tolerance-specific genes with Massa2013 biotic T}
+venn.plot <- func_venn_diagram_3(final_T_overlap,
+                                 massa2013_S2_biotic$Gene.ID,
+                                 massa2013_S3_biotic$Gene.ID,
+                                 lab1 = "T>S", 
+                                 lab2 = "biotic up", lab3 = "biotic down")
+plot.new()
+grid.draw(venn.plot)
+
+# Hypergeometric test
+# UP
+func_phyper(Set1 = massa2013_S2_biotic$Gene.ID,
+            Set2 = final_T_overlap,
+            nTotal = massa2013_total_biotic)
+# 0.3878752
+
+# DOWN
+func_phyper(Set1 = massa2013_S3_biotic$Gene.ID,
+            Set2 = final_T_overlap,
+            nTotal = massa2013_total_biotic)
+# 0.9933468
+```
+
+## Overlap of tolerance-specific genes with Massa2013 hormones: T>S
+```{r overlap of tolerance-specific genes with Massa2013 hormones T}
+venn.plot <- func_venn_diagram_3(final_T_overlap,
+                                 massa2013_S2_hormones$Gene.ID,
+                                 massa2013_S3_hormones$Gene.ID,
+                                 lab1 = "T>S", 
+                                 lab2 = "hormones up", lab3 = "hormones down")
+plot.new()
+grid.draw(venn.plot)
+
+# Hypergeometric test
+# UP
+func_phyper(Set1 = massa2013_S2_hormones$Gene.ID,
+            Set2 = final_T_overlap,
+            nTotal = massa2013_total_hormones)
+# 0.9380392
+
+# DOWN
+func_phyper(Set1 = massa2013_S3_hormones$Gene.ID,
+            Set2 = final_T_overlap,
+            nTotal = massa2013_total_hormones)
+# 1
+```
+
+## Overlap of tolerance-specific genes with Massa2013 all : S>T
+```{r overlap of tolerance-specific genes with Massa2013 all S}
+venn.plot <- func_venn_diagram_3(final_S_overlap,
+                                 massa2013_S2$Gene.ID,
+                                 massa2013_S3$Gene.ID,
+                                 lab1 = "S>T", 
+                                 lab2 = "Massa up", lab3 = "Massa down")
+plot.new()
+grid.draw(venn.plot)
+
+# Hypergeometric test
+# UP
+func_phyper(Set1 = massa2013_S2$Gene.ID,
+            Set2 = final_S_overlap,
+            nTotal = massa2013_total)
+# 0.9999432
+
+# DOWN
+func_phyper(Set1 = massa2013_S3$Gene.ID,
+            Set2 = final_S_overlap,
+            nTotal = massa2013_total)
+# 0.9999999
+```
+
+## Overlap of tolerance-specific genes with Massa2013 abiotic: S>T
+```{r overlap of tolerance-specific genes with Massa2013 abiotic S}
+venn.plot <- func_venn_diagram_3(final_S_overlap,
+                                 massa2013_S2_abiotic$Gene.ID,
+                                 massa2013_S3_abiotic$Gene.ID,
+                                 lab1 = "S>T", 
+                                 lab2 = "abiotic up", lab3 = "abiotic down")
+plot.new()
+grid.draw(venn.plot)
+
+# Hypergeometric test
+# UP
+func_phyper(Set1 = massa2013_S2_abiotic$Gene.ID,
+            Set2 = final_S_overlap,
+            nTotal = massa2013_total_abiotic)
+# 0.9936292
+
+# DOWN
+func_phyper(Set1 = massa2013_S3_abiotic$Gene.ID,
+            Set2 = final_S_overlap,
+            nTotal = massa2013_total_abiotic)
+# 1
+```
+
+## Overlap of tolerance-specific genes with Massa2013 biotic: S>T
+```{r overlap of tolerance-specific genes with Massa2013 biotic S}
+venn.plot <- func_venn_diagram_3(final_S_overlap,
+                                 massa2013_S2_biotic$Gene.ID,
+                                 massa2013_S3_biotic$Gene.ID,
+                                 lab1 = "S>T", 
+                                 lab2 = "biotic up", lab3 = "biotic down")
+plot.new()
+grid.draw(venn.plot)
+
+# Hypergeometric test
+# UP
+func_phyper(Set1 = massa2013_S2_biotic$Gene.ID,
+            Set2 = final_S_overlap,
+            nTotal = massa2013_total_biotic)
+# 1
+
+# DOWN
+func_phyper(Set1 = massa2013_S3_biotic$Gene.ID,
+            Set2 = final_S_overlap,
+            nTotal = massa2013_total_biotic)
+# 0.9990021
+```
+
+## Overlap of tolerance-specific genes with Massa2013 hormones: S>T
+```{r overlap of tolerance-specific genes with Massa2013 hormones S}
+venn.plot <- func_venn_diagram_3(final_S_overlap,
+                                 massa2013_S2_hormones$Gene.ID,
+                                 massa2013_S3_hormones$Gene.ID,
+                                 lab1 = "S>T", 
+                                 lab2 = "hormones up", lab3 = "hormones down")
+plot.new()
+grid.draw(venn.plot)
+
+# Hypergeometric test
+# UP
+func_phyper(Set1 = massa2013_S2_hormones$Gene.ID,
+            Set2 = final_S_overlap,
+            nTotal = massa2013_total_hormones)
+# 1
+
+# DOWN
+func_phyper(Set1 = massa2013_S3_hormones$Gene.ID,
+            Set2 = final_S_overlap,
+            nTotal = massa2013_total_hormones)
+# 1
+```
+
+# Wiesel2015
+[Wiesel et al. 2015:](http://dx.doi.org/10.1038/srep15229)
+**A transcriptional reference map of defence hormone responses in potato**
+
+* 5 different treatment types: ABA, ACC, Epi, MeJA, SA
+* S1: 1h treatment
+* S2: 6h treatment
+
+```{r Wiesel2015}
+wiesel2015_S1 <- read.xls("data/external/srep15229-s1.xls", sheet = 1, skip = 2) # 1h treatment
+wiesel2015_S2 <- read.xls("data/external/srep15229-s1.xls", sheet = 2, skip = 2) # 6h treatment
+
+# remove empty columns
+wiesel2015_S1 <- subset(wiesel2015_S1, select=-c(X,X.1,X.2))
+wiesel2015_S2 <- subset(wiesel2015_S2, select=-c(X,X.1,X.2))
+
+# rename columns
+colnames(wiesel2015_S1)[1:18] <- c("ID", "ABA_FC", "ACC_FC", "Epi_FC", "MeJA_FC", "SA_FC", 
+                                   "Control_Norm", "Control_Raw", "ABA_Norm", "ABA_Raw", 
+                                   "ACC_Norm", "ACC_Raw", "Epi_Norm", "Epi_Raw",
+                                   "MeJA_Norm", "MeJA_Raw", "SA_Norm", "SA_Raw")
+
+colnames(wiesel2015_S2)[1:18] <- c("ID", "ABA_FC", "ACC_FC", "Epi_FC", "MeJA_FC", "SA_FC", 
+                                   "Control_Norm", "Control_Raw", "ABA_Norm", "ABA_Raw", 
+                                   "ACC_Norm", "ACC_Raw", "Epi_Norm", "Epi_Raw",
+                                   "MeJA_Norm", "MeJA_Raw", "SA_Norm", "SA_Raw")
+
+wiesel2015_total <- 39000
+```
+
+
+## Wiesel2015 1h treatment
+```{r Wiesel2015 1h treatment}
+# select only significantly changed genes per treatment type
+wiesel2015_S1_ABA <-      subset(wiesel2015_S1, wiesel2015_S1$ABA_FC > 0)
+wiesel2015_S1_ABA_up <-   subset(wiesel2015_S1, wiesel2015_S1$ABA_FC > 1)
+wiesel2015_S1_ABA_down <- subset(wiesel2015_S1, wiesel2015_S1$ABA_FC < 1)
+
+wiesel2015_S1_ACC <- subset(wiesel2015_S1, wiesel2015_S1$ACC_FC>0)
+wiesel2015_S1_ACC_up <- subset(wiesel2015_S1, wiesel2015_S1$ACC_FC>1)
+wiesel2015_S1_ACC_down <- subset(wiesel2015_S1, wiesel2015_S1$ACC_FC<1)
+
+wiesel2015_S1_Epi <- subset(wiesel2015_S1, wiesel2015_S1$Epi_FC>0)
+wiesel2015_S1_MeJA <- subset(wiesel2015_S1, wiesel2015_S1$MeJA_FC>0)
+wiesel2015_S1_SA <- subset(wiesel2015_S1, wiesel2015_S1$SA_FC>0)
+
+wiesel2015_S1_Epi_up <- subset(wiesel2015_S1, wiesel2015_S1$Epi_FC>1)
+wiesel2015_S1_Epi_down <- subset(wiesel2015_S1, wiesel2015_S1$Epi_FC<1)
+wiesel2015_S1_MeJA_up <- subset(wiesel2015_S1, wiesel2015_S1$MeJA_FC>1)
+wiesel2015_S1_MeJA_down <- subset(wiesel2015_S1, wiesel2015_S1$MeJA_FC<1)
+wiesel2015_S1_SA_up <- subset(wiesel2015_S1, wiesel2015_S1$SA_FC>1)
+wiesel2015_S1_SA_down <- subset(wiesel2015_S1, wiesel2015_S1$SA_FC<1)
+
+wiesel2015_S1_union <- union(union(union(wiesel2015_S1_ABA$peptide.ID, 
+                                         wiesel2015_S1_ACC$peptide.ID), 
+                                   union(wiesel2015_S1_Epi$peptide.ID, 
+                                         wiesel2015_S1_MeJA$peptide.ID)), 
+                             wiesel2015_S1_SA$peptide.ID)
+
+venn.plot <- func_venn_diagram_3(wiesel2015_S1_ABA$gene.ID, 
+                                 wiesel2015_S1_SA$gene.ID, 
+                                 wiesel2015_S1_MeJA$gene.ID,
+                                 lab1="ABA", lab2="SA", lab3 = "MeJA",
+                                 filepath=NULL)
+plot.new()
+grid.draw(venn.plot)
+```
+
+
+## Wiesel2015 6h treatment
+```{r Wiesel2015 6h treatment}
+# select only significantly changed genes per treatment type
+wiesel2015_S2_ABA <-      subset(wiesel2015_S2, wiesel2015_S2$ABA_FC > 0)
+wiesel2015_S2_ABA_up <-   subset(wiesel2015_S2, wiesel2015_S2$ABA_FC > 1)
+wiesel2015_S2_ABA_down <- subset(wiesel2015_S2, wiesel2015_S2$ABA_FC < 1)
+
+wiesel2015_S2_ACC <- subset(wiesel2015_S2, wiesel2015_S2$ACC_FC>0)
+wiesel2015_S2_Epi <- subset(wiesel2015_S2, wiesel2015_S2$Epi_FC>0)
+wiesel2015_S2_MeJA <- subset(wiesel2015_S2, wiesel2015_S2$MeJA_FC>0)
+wiesel2015_S2_SA <- subset(wiesel2015_S2, wiesel2015_S2$SA_FC>0)
+
+wiesel2015_S2_ACC_up <-   subset(wiesel2015_S2, wiesel2015_S2$ACC_FC > 1)
+wiesel2015_S2_ACC_down <- subset(wiesel2015_S2, wiesel2015_S2$ACC_FC < 1)
+wiesel2015_S2_Epi_up <- subset(wiesel2015_S2, wiesel2015_S2$Epi_FC>1)
+wiesel2015_S2_Epi_down <- subset(wiesel2015_S2, wiesel2015_S2$Epi_FC<1)
+wiesel2015_S2_MeJA_up <- subset(wiesel2015_S2, wiesel2015_S2$MeJA_FC>1)
+wiesel2015_S2_MeJA_down <- subset(wiesel2015_S2, wiesel2015_S2$MeJA_FC<1)
+wiesel2015_S2_SA_up <- subset(wiesel2015_S2, wiesel2015_S2$SA_FC>1)
+wiesel2015_S2_SA_down <- subset(wiesel2015_S2, wiesel2015_S2$SA_FC<1)
+
+wiesel2015_S2_union <- union(union(union(wiesel2015_S2_ABA$peptide.ID, 
+                                         wiesel2015_S2_ACC$peptide.ID), 
+                                   union(wiesel2015_S2_Epi$peptide.ID, 
+                                         wiesel2015_S2_MeJA$peptide.ID)), 
+                             wiesel2015_S2_SA$peptide.ID)
+
+venn.plot <- func_venn_diagram_3(wiesel2015_S2_ABA$gene.ID, 
+                                 wiesel2015_S2_SA$gene.ID, 
+                                 wiesel2015_S2_MeJA$gene.ID,
+                                 lab1="ABA", lab2="SA", lab3 = "MeJA",
+                                 filepath=NULL)
+plot.new()
+grid.draw(venn.plot)
+```
+
+
+## Overlap with Wiesel2015 (up/down)
+```{r overlap with Wiesel2015 (up/down)}
+# greenhouse
+length(unique(intersect(final_greenhouse_all_up$pgsc_dmg, wiesel2015_S1_ABA$gene.ID)))
+length(unique(intersect(final_greenhouse_all_down$pgsc_dmg, wiesel2015_S1_ABA$gene.ID)))
+
+# field
+length(unique(intersect(final_field_all_up$pgsc_dmg, wiesel2015_S1_ABA$gene.ID)))
+length(unique(intersect(final_field_all_down$pgsc_dmg, wiesel2015_S1_ABA$gene.ID)))
+```
+
+
+## Overlap of drought-responsive genes with Wiesel2015 1h UP
+```{r overlap of drought-responsive genes with Wiesel2015 1h UP}
+venn.plot <- func_venn_diagram_2(final_all_up_overlap_dmp,
+                                 wiesel2015_S1_union,
+                                 lab1 = "overlap up", lab2 = "1h union")
+plot.new()
+grid.draw(venn.plot)
+
+final_all_up_overlap_wiesel2015_S1_union <- unique(intersect(final_all_up_overlap_dmp, wiesel2015_S1_union))
+wiesel2015_S1_GOI_UP <- wiesel2015_S1[which(wiesel2015_S1$peptide.ID %in% final_all_up_overlap_wiesel2015_S1_union),]
+wiesel2015_S1_GOI_UP[, c(25,2:6,22,27)]
+# overlap of 17 proteins with MeJa down and 11 proteins with SA down
+
+# Hypergeometric test
+# MeJA down
+func_phyper(Set1 = wiesel2015_S1_MeJA_down$peptide.ID,
+            Set2 = final_all_up_overlap_dmp,
+            nTotal = wiesel2015_total)
+# SA down
+func_phyper(Set1 = wiesel2015_S1_SA_down$peptide.ID,
+            Set2 = final_all_up_overlap_dmp,
+            nTotal = wiesel2015_total)
+```
+
+## Overlap of drought-responsive genes with Wiesel2015 1h DOWN
+```{r overlap of drought-responsive genes with Wiesel2015 1h DOWN}
+venn.plot <- func_venn_diagram_2(final_all_down_overlap_dmp,
+                                 wiesel2015_S1_union,
+                                 lab1 = "overlap down", lab2 = "1h union")
+
+venn.plot <- func_venn_diagram_4(final_all_down_overlap_dmp,
+                                 wiesel2015_S1_MeJA$peptide.ID,
+                                 wiesel2015_S1_SA$peptide.ID,
+                                 wiesel2015_S1_ABA$peptide.ID,
+                                 lab1 = "overlap down", lab2 = "MeJA", lab3 = "SA", lab4 = "ABA")
+plot.new()
+grid.draw(venn.plot)
+
+final_all_down_overlap_wiesel2015_S1_union <- unique(intersect(final_all_down_overlap_dmp, wiesel2015_S1_union))
+wiesel2015_S1_GOI_DOWN <- wiesel2015_S1[which(wiesel2015_S1$peptide.ID %in% final_all_down_overlap_wiesel2015_S1_union),]
+wiesel2015_S1_GOI_DOWN[, c(25,2:6,22,27)]
+# overlap of 14 proteins with MeJA (13), ABA (3), SA (4)
+
+# Hypergeometric test
+# MeJA down
+func_phyper(Set1 = wiesel2015_S1_MeJA_down$peptide.ID,
+            Set2 = final_all_down_overlap_dmp,
+            nTotal = wiesel2015_total)
+# MeJA up
+func_phyper(Set1 = wiesel2015_S1_MeJA_up$peptide.ID,
+            Set2 = final_all_down_overlap_dmp,
+            nTotal = wiesel2015_total)
+# SA down
+func_phyper(Set1 = wiesel2015_S1_SA_down$peptide.ID,
+            Set2 = final_all_down_overlap_dmp,
+            nTotal = wiesel2015_total)
+# SA up
+func_phyper(Set1 = wiesel2015_S1_SA_up$peptide.ID,
+            Set2 = final_all_down_overlap_dmp,
+            nTotal = wiesel2015_total)
+# ABA down
+func_phyper(Set1 = wiesel2015_S1_ABA_down$peptide.ID,
+            Set2 = final_all_down_overlap_dmp,
+            nTotal = wiesel2015_total)
+```
+
+## Overlap of drought-responsive genes with Wiesel2015 6h: UP
+```{r overlap of drought-responsive genes with Wiesel2015 6h UP}
+venn.plot <- func_venn_diagram_2(final_all_up_overlap_dmp,
+                                 wiesel2015_S2_union,
+                                 lab1 = "overlap up", lab2 = "6h union")
+
+venn.plot <- func_venn_diagram_4(final_all_up_overlap_dmp,
+                                 wiesel2015_S2_MeJA$peptide.ID,
+                                 wiesel2015_S2_Epi$peptide.ID,
+                                 wiesel2015_S2_ABA$peptide.ID,
+                                 lab1 = "overlap down", lab2 = "MeJA", lab3 = "Epi", lab4 = "ABA")
+
+venn.plot <- func_venn_diagram_2(wiesel2015_S2_ABA$peptide.ID,
+                                 final_all_up_overlap_dmp,
+                                 lab2 = "overlap up", lab1 = "ABA 6h")
+plot.new()
+grid.draw(venn.plot)
+
+final_all_up_overlap_wiesel2015_S2_union <- unique(intersect(final_all_up_overlap_dmp, wiesel2015_S2_union))
+wiesel2015_S2_GOI_UP <- wiesel2015_S2[which(wiesel2015_S2$peptide.ID %in% final_all_up_overlap_wiesel2015_S2_union),]
+wiesel2015_S2_GOI_UP[, c(25,2:6,22,27)]
+# overlap of 11 proteins with ABA (10), Epi (1) and MeJA (1)
+
+# Hypergeometric test
+# ABA up
+func_phyper(Set1 = wiesel2015_S2_ABA_up$peptide.ID,
+            Set2 = final_all_up_overlap_dmp,
+            nTotal = wiesel2015_total)
+# MeJA down
+func_phyper(Set1 = wiesel2015_S2_MeJA_down$peptide.ID,
+            Set2 = final_all_up_overlap_dmp,
+            nTotal = wiesel2015_total)
+# Epi down
+func_phyper(Set1 = wiesel2015_S2_Epi_down$peptide.ID,
+            Set2 = final_all_up_overlap_dmp,
+            nTotal = wiesel2015_total)
+```
+
+
+## Overlap of drought-responsive genes with Wiesel2015 6h: DOWN
+```{r overlap of drought-responsive genes with Wiesel2015 6h DOWN}
+venn.plot <- func_venn_diagram_2(final_all_down_overlap_dmp,
+                                 wiesel2015_S2_union,
+                                 lab1 = "overlap down", lab2 = "6h union")
+
+venn.plot <- func_venn_diagram_4(final_all_down_overlap_dmp,
+                                 wiesel2015_S2_MeJA$peptide.ID,
+                                 wiesel2015_S2_SA$peptide.ID,
+                                 wiesel2015_S2_ABA$peptide.ID,
+                                 lab1 = "overlap down", lab2 = "MeJA", lab3 = "SA", lab4 = "ABA")
+
+venn.plot <- func_venn_diagram_2(wiesel2015_S2_ABA_down$peptide.ID,
+                                 final_all_down_overlap_dmp,
+                                 lab2 = "overlap up", lab1 = "ABA 6h down")
+plot.new()
+grid.draw(venn.plot)
+
+final_all_down_overlap_wiesel2015_S2_union <- unique(intersect(final_all_down_overlap_dmp, wiesel2015_S2_union))
+wiesel2015_S2_GOI_DOWN <- wiesel2015_S2[which(wiesel2015_S2$peptide.ID %in% final_all_down_overlap_wiesel2015_S2_union),]
+wiesel2015_S2_GOI_DOWN[, c(25,2:6,22,27)]
+# overlap of 9 proteins with MeJA (2), ABA (8), SA (2)
+
+# Hypergeometric test
+# MeJA down
+func_phyper(Set1 = wiesel2015_S2_MeJA_down$peptide.ID,
+            Set2 = final_all_down_overlap_dmp,
+            nTotal = wiesel2015_total)
+# MeJA up
+func_phyper(Set1 = wiesel2015_S2_MeJA_up$peptide.ID,
+            Set2 = final_all_down_overlap_dmp,
+            nTotal = wiesel2015_total)
+# SA down
+func_phyper(Set1 = wiesel2015_S2_SA_down$peptide.ID,
+            Set2 = final_all_down_overlap_dmp,
+            nTotal = wiesel2015_total)
+# ABA down
+func_phyper(Set1 = wiesel2015_S2_ABA_down$peptide.ID,
+            Set2 = final_all_down_overlap_dmp,
+            nTotal = wiesel2015_total)
+# ABA up
+func_phyper(Set1 = wiesel2015_S2_ABA_up$peptide.ID,
+            Set2 = final_all_down_overlap_dmp,
+            nTotal = wiesel2015_total)
+```
+
+## Overlap of tolerance-specific genes with Wiesel2015 1h: T>S
+```{r overlap of tolerance-specific genes with Wiesel2015 1h T}
+final_T_overlap_wiesel2015_S1_ABA <- unique(intersect(final_T_overlap_dmp, wiesel2015_S1_ABA$peptide.ID))
+# NOTHING!
+final_T_overlap_wiesel2015_S1_SA <- unique(intersect(final_T_overlap_dmp, wiesel2015_S1_SA$peptide.ID)) #3
+# "PGSC0003DMP400001129" "PGSC0003DMP400029686" "PGSC0003DMP400044888"
+final_T_overlap_wiesel2015_S1_MeJA <- unique(intersect(final_T_overlap_dmp, wiesel2015_S1_MeJA$peptide.ID)) #8
+# "PGSC0003DMP400005238" "PGSC0003DMP400030956" "PGSC0003DMP400030957" "PGSC0003DMP400033210" 
+# "PGSC0003DMP400044774" "PGSC0003DMP400044888" "PGSC0003DMP400044889" "PGSC0003DMP400046473"
+final_T_overlap_wiesel2015_S1_Epi <- unique(intersect(final_T_overlap_dmp, wiesel2015_S1_Epi$peptide.ID)) #1
+# PGSC0003DMP400001129
+final_T_overlap_wiesel2015_S1_ACC <- unique(intersect(final_T_overlap_dmp, wiesel2015_S1_ACC$peptide.ID)) #1
+# PGSC0003DMP400001129
+
+final_T_overlap_wiesel2015_S1_all <- unique(c(final_T_overlap_wiesel2015_S1_ABA,
+                                              final_T_overlap_wiesel2015_S1_ACC,
+                                              final_T_overlap_wiesel2015_S1_SA,
+                                              final_T_overlap_wiesel2015_S1_MeJA,
+                                              final_T_overlap_wiesel2015_S1_Epi))
+
+# get part of S1 table only for genes of interest (GOI)
+wiesel2015_S1_GOI_T <- wiesel2015_S1[which(wiesel2015_S1$peptide.ID %in% final_T_overlap_wiesel2015_S1_all),]
+wiesel2015_S1_GOI_T[, c(25,2:6,22,27)]
+
+venn.plot <- func_venn_diagram_5(final_T_overlap_dmp,
+                                 wiesel2015_S1_SA$peptide.ID,
+                                 wiesel2015_S1_MeJA$peptide.ID,
+                                 wiesel2015_S1_Epi$peptide.ID,
+                                 wiesel2015_S1_ACC$peptide.ID,
+                                 lab1 = "T>S", lab2 = "SA", lab3 = "MeJA", 
+                                 lab4 = "Epi", lab5 = "ACC")
+plot.new()
+grid.draw(venn.plot)
+
+# Hypergeometric test
+# MeJA down
+func_phyper(Set1 = wiesel2015_S1_MeJA_down$peptide.ID,
+            Set2 = final_T_overlap_dmp,
+            nTotal = wiesel2015_total)
+# MeJA up
+func_phyper(Set1 = wiesel2015_S1_MeJA_up$peptide.ID,
+            Set2 = final_T_overlap_dmp,
+            nTotal = wiesel2015_total)
+# Epi down
+func_phyper(Set1 = wiesel2015_S1_Epi_down$peptide.ID,
+            Set2 = final_T_overlap_dmp,
+            nTotal = wiesel2015_total)
+# ACC down
+func_phyper(Set1 = wiesel2015_S1_ACC_down$peptide.ID,
+            Set2 = final_T_overlap_dmp,
+            nTotal = wiesel2015_total)
+# SA down
+func_phyper(Set1 = wiesel2015_S1_SA_down$peptide.ID,
+            Set2 = final_T_overlap_dmp,
+            nTotal = wiesel2015_total)
+# SA up
+func_phyper(Set1 = wiesel2015_S1_SA_up$peptide.ID,
+            Set2 = final_T_overlap_dmp,
+            nTotal = wiesel2015_total)
+```
+
+
+### Overlap of tolerance-specific genes with Wiesel2015 1h ACC: T>S
+```{r overlap of tolerance-specific genes with Wiesel 2015 1h ACC T}
+venn.plot <- func_venn_diagram_3(final_T_overlap_dmp, 
+                                 wiesel2015_S1_ACC_up$peptide.ID,
+                                 wiesel2015_S1_ACC_down$peptide.ID,
+                                 lab1="T>S", lab2 = "ACC up", lab3 = "ACC down",
+                                 #position_val = c(0,0,0),
+                                 dist_val = c(0.1, 0.1, 0.1))
+plot.new()
+grid.draw(venn.plot)
+```
+
+
+### Overlap of tolerance-specific genes with Wiesel2015 1h SA: T>S
+```{r overlap of tolerance-specific genes with Wiesel 2015 1h SA T}
+venn.plot <- func_venn_diagram_3(wiesel2015_S1_SA_up$peptide.ID,
+                                 wiesel2015_S1_SA_down$peptide.ID,
+                                 final_T_overlap_dmp,
+                                 lab1 = "SA up", lab2 = "SA down", lab3 = "T>S", 
+                                 #position_val = c(0,0,0),
+                                 dist_val = c(0.1, 0.1, 0.1))
+
+plot.new()
+grid.draw(venn.plot)
+```
+
+### Overlap of tolerance-specific genes with Wiesel2015 1h MeJA: T>S
+```{r overlap of tolerance-specific genes with Wiesel 2015 1h MeJA T}
+venn.plot <- func_venn_diagram_3(final_T_overlap_dmp, 
+                                 wiesel2015_S1_MeJA_up$peptide.ID,
+                                 wiesel2015_S1_MeJA_down$peptide.ID,
+                                 lab1="T>S", lab2 = "MeJA up", lab3 = "MeJA down",
+                                 #position_val = c(0,0,0),
+                                 dist_val = c(0.2, 0.2, 0.1))
+
+plot.new()
+grid.draw(venn.plot)
+```
+
+### Overlap of tolerance-specific genes with Wiesel2015 1h Epi: T>S
+```{r overlap of tolerance-specific genes with Wiesel 2015 1h Epi T}
+wiesel2015_S1_Epi_up <- subset(wiesel2015_S1, wiesel2015_S1$Epi_FC>1)
+wiesel2015_S1_Epi_down <- subset(wiesel2015_S1, wiesel2015_S1$Epi_FC<1)
+
+venn.plot <- func_venn_diagram_3(final_T_overlap_dmp, 
+                                 wiesel2015_S1_Epi_up$peptide.ID,
+                                 wiesel2015_S1_Epi_down$peptide.ID,
+                                 lab1="T>S", lab2 = "Epi up", lab3 = "Epi down",
+                                 #position_val = c(0,0,0),
+                                 dist_val = c(0.2, 0.2, 0.1))
+
+plot.new()
+grid.draw(venn.plot)
+```
+
+## Overlap of tolerance-specific genes with Wiesel2015 6h: T>S
+```{r overlap of tolerance-specific genes with Wiesel2015 6h T}
+final_T_overlap_wiesel2015_S2_ABA <- unique(intersect(final_T_overlap_dmp, wiesel2015_S2_ABA$peptide.ID)) #3
+# "PGSC0003DMP400011249" "PGSC0003DMP400028085" "PGSC0003DMP400055524"
+final_T_overlap_wiesel2015_S2_SA <- unique(intersect(final_T_overlap_dmp, wiesel2015_S2_SA$peptide.ID)) #1
+# "PGSC0003DMP400003229"
+final_T_overlap_wiesel2015_S2_MeJA <- unique(intersect(final_T_overlap_dmp, wiesel2015_S2_MeJA$peptide.ID)) #0
+# nothing
+final_T_overlap_wiesel2015_S2_Epi <- unique(intersect(final_T_overlap_dmp, wiesel2015_S2_Epi$peptide.ID)) #0
+# nothing
+final_T_overlap_wiesel2015_S2_ACC <- unique(intersect(final_T_overlap_dmp, wiesel2015_S2_ACC$peptide.ID)) #2
+# "PGSC0003DMP400009084" "PGSC0003DMP400011249"
+
+final_T_overlap_wiesel2015_S2_all <- unique(c(final_T_overlap_wiesel2015_S2_ABA,
+                                              final_T_overlap_wiesel2015_S2_ACC,
+                                              final_T_overlap_wiesel2015_S2_SA,
+                                              final_T_overlap_wiesel2015_S2_MeJA,
+                                              final_T_overlap_wiesel2015_S2_Epi))
+
+# get part of S2 table only for genes of interest (GOI)
+wiesel2015_S2_GOI_T <- wiesel2015_S2[which(wiesel2015_S2$peptide.ID %in% final_T_overlap_wiesel2015_S2_all),]
+wiesel2015_S2_GOI_T[, c(25,2:6,22,27)]
+
+venn.plot <- func_venn_diagram_4(final_T_overlap_dmp,
+                                 wiesel2015_S2_SA$peptide.ID,
+                                 wiesel2015_S2_ABA$peptide.ID,
+                                 wiesel2015_S2_ACC$peptide.ID,
+                                 lab1 = "T>S", lab2 = "SA", lab3 = "ABA", lab4 = "ACC")
+plot.new()
+grid.draw(venn.plot)
+
+# Hypergeometric test
+# ABA down
+func_phyper(Set1 = wiesel2015_S2_ABA_down$peptide.ID,
+            Set2 = final_T_overlap_dmp,
+            nTotal = wiesel2015_total)
+# ABA up
+func_phyper(Set1 = wiesel2015_S2_ABA_up$peptide.ID,
+            Set2 = final_T_overlap_dmp,
+            nTotal = wiesel2015_total)
+# ACC down
+func_phyper(Set1 = wiesel2015_S2_ACC_down$peptide.ID,
+            Set2 = final_T_overlap_dmp,
+            nTotal = wiesel2015_total)
+# ACC up
+func_phyper(Set1 = wiesel2015_S2_ACC_up$peptide.ID,
+            Set2 = final_T_overlap_dmp,
+            nTotal = wiesel2015_total)
+# SA up
+func_phyper(Set1 = wiesel2015_S2_SA_up$peptide.ID,
+            Set2 = final_T_overlap_dmp,
+            nTotal = wiesel2015_total)
+```
+
+### Overlap of tolerance-specific genes with Wiesel2015 6h ACC: T>S
+```{r overlap of tolerance-specific genes with Wiesel 2015 6h ACC T}
+venn.plot <- func_venn_diagram_3(final_T_overlap_dmp, 
+                                 wiesel2015_S2_ACC_up$peptide.ID,
+                                 wiesel2015_S2_ACC_down$peptide.ID,
+                                 lab1="T>S", lab2 = "ACC up", lab3 = "ACC down",
+                                 filepath=NULL,
+                                 #position_val = c(0,0,0),
+                                 dist_val = c(0.2, 0.2, 0.1))
+
+plot.new()
+grid.draw(venn.plot)
+```
+
+
+### Overlap of tolerance-specific genes with Wiesel2015 6h ABA: T>S
+```{r overlap of tolerance-specific genes with Wiesel 2015 6h ABA T}
+venn.plot <- func_venn_diagram_3(final_T_overlap_dmp, 
+                                 wiesel2015_S2_ABA_up$peptide.ID,
+                                 wiesel2015_S2_ABA_down$peptide.ID,
+                                 lab1="T>S", lab2 = "ABA up", lab3 = "ABA down",
+                                 filepath=NULL,
+                                 #position_val = c(0,0,0),
+                                 dist_val = c(0.2, 0.2, 0.1))
+
+plot.new()
+grid.draw(venn.plot)
+```
+
+### Overlap of tolerance-specific genes with Wiesel2015 6h SA: T>S
+```{r overlap of tolerance-specific genes with Wiesel 2015 6h SA T}
+venn.plot <- func_venn_diagram_3(final_T_overlap_dmp, 
+                                 wiesel2015_S2_SA_up$peptide.ID,
+                                 wiesel2015_S2_SA_down$peptide.ID,
+                                 lab1="T>S", lab2 = "SA up", lab3 = "SA down",
+                                 filepath=NULL,
+                                 #position_val = c(0,0,0),
+                                 dist_val = c(0.2, 0.2, 0.1))
+
+plot.new()
+grid.draw(venn.plot)
+```
+
+
+## Overlap of tolerance-specific genes with Wiesel2015 1h: S>T
+```{r overlap of tolerance-specific genes with Wiesel2015 1h S}
+final_S_overlap_wiesel2015_S1_ABA <- unique(intersect(final_S_overlap_dmp, wiesel2015_S1_ABA$peptide.ID)) #2
+# "PGSC0003DMP400013075" "PGSC0003DMP400055162"
+final_S_overlap_wiesel2015_S1_SA <- unique(intersect(final_S_overlap_dmp, wiesel2015_S1_SA$peptide.ID)) #0
+# 
+final_S_overlap_wiesel2015_S1_MeJA <- unique(intersect(final_S_overlap_dmp, wiesel2015_S1_MeJA$peptide.ID)) #3
+# "PGSC0003DMP400013075" "PGSC0003DMP400027325" "PGSC0003DMP400051988"
+final_S_overlap_wiesel2015_S1_Epi <- unique(intersect(final_S_overlap_dmp, wiesel2015_S1_Epi$peptide.ID)) #0
+# 
+final_S_overlap_wiesel2015_S1_ACC <- unique(intersect(final_S_overlap_dmp, wiesel2015_S1_ACC$peptide.ID)) #0
+# 
+
+final_S_overlap_wiesel2015_S1_all <- unique(c(final_S_overlap_wiesel2015_S1_ABA,
+                                              final_S_overlap_wiesel2015_S1_ACC,
+                                              final_S_overlap_wiesel2015_S1_SA,
+                                              final_S_overlap_wiesel2015_S1_MeJA,
+                                              final_S_overlap_wiesel2015_S1_Epi))
+
+# get part of S1 table only for genes of interest (GOI)
+wiesel2015_S1_GOI_S <- wiesel2015_S1[which(wiesel2015_S1$peptide.ID %in% final_S_overlap_wiesel2015_S1_all),]
+wiesel2015_S1_GOI_S[, c(25,2:6,22,27)]
+
+venn.plot <- func_venn_diagram_3(final_S_overlap_dmp,
+                                 wiesel2015_S1_ABA$peptide.ID,
+                                 wiesel2015_S1_MeJA$peptide.ID,
+                                 lab1 = "S>T", lab2 = "ABA", lab3 = "MeJA")
+                                 #position_val = 0)
+plot.new()
+grid.draw(venn.plot)
+
+# Hypergeometric test
+# ABA down
+func_phyper(Set1 = wiesel2015_S1_ABA_down$peptide.ID,
+            Set2 = final_S_overlap_dmp,
+            nTotal = wiesel2015_total)
+# ABA up
+func_phyper(Set1 = wiesel2015_S1_ABA_up$peptide.ID,
+            Set2 = final_S_overlap_dmp,
+            nTotal = wiesel2015_total)
+# MeJA down
+func_phyper(Set1 = wiesel2015_S1_MeJA_down$peptide.ID,
+            Set2 = final_S_overlap_dmp,
+            nTotal = wiesel2015_total)
+# MeJA up
+func_phyper(Set1 = wiesel2015_S1_MeJA_up$peptide.ID,
+            Set2 = final_S_overlap_dmp,
+            nTotal = wiesel2015_total)
+```
+
+
+## Overlap of tolerance-specific genes with Wiesel2015 6h: S>T
+```{r overlap of tolerance-specific genes with Wiesel2015 6h S}
+final_S_overlap_wiesel2015_S2_ABA <- unique(intersect(final_S_overlap_dmp, wiesel2015_S2_ABA$peptide.ID)) #0
+
+final_S_overlap_wiesel2015_S2_SA <- unique(intersect(final_S_overlap_dmp, wiesel2015_S2_SA$peptide.ID)) #0
+
+final_S_overlap_wiesel2015_S2_MeJA <- unique(intersect(final_S_overlap_dmp, wiesel2015_S2_MeJA$peptide.ID)) #1
+# PGSC0003DMP400051988
+final_S_overlap_wiesel2015_S2_Epi <- unique(intersect(final_S_overlap_dmp, wiesel2015_S2_Epi$peptide.ID)) #0
+
+final_S_overlap_wiesel2015_S2_ACC <- unique(intersect(final_S_overlap_dmp, wiesel2015_S2_ACC$peptide.ID)) #0
+
+final_S_overlap_wiesel2015_S2_all <- unique(c(final_S_overlap_wiesel2015_S2_ABA,
+                                              final_S_overlap_wiesel2015_S2_ACC,
+                                              final_S_overlap_wiesel2015_S2_SA,
+                                              final_S_overlap_wiesel2015_S2_MeJA,
+                                              final_S_overlap_wiesel2015_S2_Epi))
+
+# get part of S2 table only for genes of interest (GOI)
+wiesel2015_S2_GOI_S <- wiesel2015_S2[which(wiesel2015_S2$peptide.ID %in% final_S_overlap_wiesel2015_S2_all),]
+wiesel2015_S2_GOI_S[, c(25,2:6,22,27)]
+
+venn.plot <- func_venn_diagram_4(final_S_overlap_dmp,
+                                 wiesel2015_S2_SA$peptide.ID,
+                                 wiesel2015_S2_ABA$peptide.ID,
+                                 wiesel2015_S2_ACC$peptide.ID,
+                                 lab1 = "S>T", lab2 = "SA", lab3 = "ABA", lab4 = "ACC")
+plot.new()
+grid.draw(venn.plot)
+
+# Hypergeometric test
+# MeJA up
+func_phyper(Set1 = wiesel2015_S2_MeJA_up$peptide.ID,
+            Set2 = final_S_overlap_dmp,
+            nTotal = wiesel2015_total)
+```
+
+
+
+# Bengtsson2014
+[Bengtsson et al. 2014:](http://www.biomedcentral.com/1471-2164/15/315/)
+**Proteomics and transcriptomics of the {BABA}-induced resistance response in potato using a novel functional annotation approach**
+
+* 2979 DGE
+* 2273 up-regulated genes
+* 706 down-regulated genes
+
+```{r Bengtsson2014}
+bengtsson2014a_S3 <- read.table("data/external/1471-2164-15-315-s3.txt", header = T, sep = "\t", dec = ",")
+
+bengtsson2014a_S3_up <- subset(bengtsson2014a_S3, bengtsson2014a_S3$Ratio..log2. > 0)
+bengtsson2014a_S3_down <- subset(bengtsson2014a_S3, bengtsson2014a_S3$Ratio..log2. < 0)
+
+bengtsson2014a_S3_up_dmg <- merge(bengtsson2014a_S3_up, pgsc, by.x = "ProteinID", by.y = "PGSC_DMP")
+bengtsson2014a_S3_down_dmg <- merge(bengtsson2014a_S3_down, pgsc, by.x = "ProteinID", by.y = "PGSC_DMP")
+
+bengtsson2014_median_signal <- read.table("data/external/Bengtsson2014a/median_signal.txt", header = T, sep = "\t")
+bengtsson2014a_total <- length(unique(bengtsson2014_median_signal$SystematicName))
+# 52848
+
+length(intersect(bengtsson2014_median_signal$ProbeName, bengtsson2014a_S3$Probe_Name))
+
+bengtsson2014_median_signal_part <- bengtsson2014_median_signal[which(bengtsson2014_median_signal$ProbeName %in% bengtsson2014a_S3$Probe_Name),]
+```
+
+
+## Overlap of tolerance-specific genes with Bengtsson2014
+```{r overlap of tolerance-specific genes with Bengtsson2014}
+length(unique(intersect(final_greenhouse_control_T$pgsc_dmp, bengtsson2014a_S3$ProteinID)))
+length(unique(intersect(final_greenhouse_control_S$pgsc_dmp, bengtsson2014a_S3$ProteinID)))
+
+length(unique(intersect(final_greenhouse_stress_T$pgsc_dmp, bengtsson2014a_S3$ProteinID)))
+length(unique(intersect(final_greenhouse_stress_S$pgsc_dmp, bengtsson2014a_S3$ProteinID)))
+
+length(unique(intersect(final_field_control_T$pgsc_dmp, bengtsson2014a_S3$ProteinID)))
+length(unique(intersect(final_field_control_S$pgsc_dmp, bengtsson2014a_S3$ProteinID)))
+
+length(unique(intersect(final_field_stress_T$pgsc_dmp, bengtsson2014a_S3$ProteinID)))
+length(unique(intersect(final_field_stress_S$pgsc_dmp, bengtsson2014a_S3$ProteinID)))
+```
+
+
+## Overlap of drought-responsive genes with Bengtsson2014: Greenhouse
+```{r overlap of drought-responsive genes with Bengtsson2014 greenhouse}
+# greenhouse
+length(unique(intersect(final_greenhouse_all_up$pgsc_dmp, bengtsson2014a_S3_up$ProteinID)))
+length(unique(intersect(final_greenhouse_all_up$pgsc_dmp, bengtsson2014a_S3_down$ProteinID)))
+length(unique(intersect(final_greenhouse_all_down$pgsc_dmp, bengtsson2014a_S3_up$ProteinID)))
+length(unique(intersect(final_greenhouse_all_down$pgsc_dmp, bengtsson2014a_S3_down$ProteinID)))
+
+venn.plot <- func_venn_diagram_3(final_greenhouse_all_down$pgsc_dmp, 
+                                 bengtsson2014a_S3_up$ProteinID,
+                                 bengtsson2014a_S3_down$ProteinID,
+                                 lab1="greenhouse down", 
+                                 lab2 = "Bengtsson2014 up", lab3 = "Bengtsson2014 down")
+plot.new()
+grid.draw(venn.plot)
+
+venn.plot <- func_venn_diagram_3(final_greenhouse_all_up$pgsc_dmp, 
+                                 bengtsson2014a_S3_up$ProteinID,
+                                 bengtsson2014a_S3_down$ProteinID,
+                                 lab1="greenhouse up", 
+                                 lab2 = "Bengtsson2014 up", lab3 = "Bengtsson2014 down")
+plot.new()
+grid.draw(venn.plot)
+```
+
+## Overlap of drought-responsive genes with Bengtsson2014: Field
+```{r overlap of drought-responsive genes with Bengtsson2014 field}
+length(unique(intersect(final_field_all_up$pgsc_dmp, bengtsson2014a_S3_up$ProteinID)))
+length(unique(intersect(final_field_all_up$pgsc_dmp, bengtsson2014a_S3_down$ProteinID)))
+length(unique(intersect(final_field_all_down$pgsc_dmp, bengtsson2014a_S3_up$ProteinID)))
+length(unique(intersect(final_field_all_down$pgsc_dmp, bengtsson2014a_S3_down$ProteinID)))
+
+venn.plot <- func_venn_diagram_3(final_field_all_down$pgsc_dmp, 
+                                 bengtsson2014a_S3_up$ProteinID,
+                                 bengtsson2014a_S3_down$ProteinID,
+                                 lab1="field down", 
+                                 lab2 = "Bengtsson2014 up", lab3 = "Bengtsson2014 down")
+plot.new()
+grid.draw(venn.plot)
+
+venn.plot <- func_venn_diagram_3(final_field_all_up$pgsc_dmp, 
+                                 bengtsson2014a_S3_up$ProteinID,
+                                 bengtsson2014a_S3_down$ProteinID,
+                                 lab1="field up", 
+                                 lab2 = "Bengtsson2014 up", lab3 = "Bengtsson2014 down")
+plot.new()
+grid.draw(venn.plot)
+```
+
+
+## Overlap of drought-responsive genes with Bengtsson2014: UP
+```{r overlap of drought-responsive genes with Bengtsson2014 UP}
+venn.plot <- func_venn_diagram_3(final_all_up_overlap_dmp, 
+                                 bengtsson2014a_S3_up$ProteinID,
+                                 bengtsson2014a_S3_down$ProteinID,
+                                 lab1="overlap up", lab2 = "BABA up", lab3 = "BABA down",
+                                 #position_val = c(0,0,0),
+                                 dist_val = c(0.2, 0.2, 0.1))
+plot.new()
+grid.draw(venn.plot)
+
+# Hypergeometric test
+func_phyper(Set1 = bengtsson2014a_S3_up$ProteinID,
+            Set2 = final_all_up_overlap_dmp,
+            nTotal = bengtsson2014a_total)
+# 0.9716668
+
+func_phyper(Set1 = bengtsson2014a_S3_down$ProteinID,
+            Set2 = final_all_up_overlap_dmp,
+            nTotal = bengtsson2014a_total)
+# 0.09462895
+```
+
+## Overlap of drought-responsive genes with Bengtsson2014: DOWN
+```{r overlap of drought-responsive genes with Bengtsson2014 DOWN}
+venn.plot <- func_venn_diagram_3(final_all_down_overlap_dmp, 
+                                 bengtsson2014a_S3_up$ProteinID,
+                                 bengtsson2014a_S3_down$ProteinID,
+                                 lab1="overlap down", lab2 = "BABA up", lab3 = "BABA down",
+                                 #position_val = c(0,0,0),
+                                 dist_val = c(0.2, 0.2, 0.1))
+plot.new()
+grid.draw(venn.plot)
+
+# Hypergeometric test
+func_phyper(Set1 = bengtsson2014a_S3_up$ProteinID,
+            Set2 = final_all_down_overlap_dmp,
+            nTotal = bengtsson2014a_total)
+# 0.004176799
+
+func_phyper(Set1 = bengtsson2014a_S3_down$ProteinID,
+            Set2 = final_all_down_overlap_dmp,
+            nTotal = bengtsson2014a_total)
+# 0.1110829
+```
+
+## Overlap of tolerance-specific genes with Bengtsson2014: T>S
+```{r overlap of tolerance-specific genes with Bengtsson2014 T}
+final_T_overlap_bengtsson2014a_up <- unique(intersect(final_T_overlap_dmp, bengtsson2014a_S3_up$ProteinID))
+final_T_overlap_bengtsson2014a_down <- unique(intersect(final_T_overlap_dmp, bengtsson2014a_S3_down$ProteinID))
+
+length(final_T_overlap_bengtsson2014a_up)
+length(final_T_overlap_bengtsson2014a_down)
+
+bengtsson2014a_S3_up[which(bengtsson2014a_S3_up$ProteinID %in% final_T_overlap_bengtsson2014a_up),-2]
+bengtsson2014a_S3_down[which(bengtsson2014a_S3_down$ProteinID %in% final_T_overlap_bengtsson2014a_down),-2]
+
+venn.plot <- func_venn_diagram_3(final_T_overlap_dmp, 
+                                 bengtsson2014a_S3_up$ProteinID,
+                                 bengtsson2014a_S3_down$ProteinID,
+                                 lab1="T>S", lab2 = "BABA up", lab3 = "BABA down",
+                                 #position_val = c(0,0,0),
+                                 dist_val = c(0.2, 0.2, 0.1))
+plot.new()
+grid.draw(venn.plot)
+
+# which genes are overlapping
+final_T_overlap_bengtsson2014a_up
+final_T_overlap_bengtsson2014a_down
+
+# Hypergeometric test
+func_phyper(Set1 = bengtsson2014a_S3_up$ProteinID,
+            Set2 = final_T_overlap_dmp,
+            nTotal = bengtsson2014a_total)
+# 0.003093293
+
+func_phyper(Set1 = bengtsson2014a_S3_down$ProteinID,
+            Set2 = final_T_overlap_dmp,
+            nTotal = bengtsson2014a_total)
+# 0.04048599
+```
+
+
+## Overlap of tolerance-specific genes with Bengtsson2014: S>T
+```{r overlap of tolerance-specific genes with Bengtsson2014 S}
+final_S_overlap_bengtsson2014a_up <- unique(intersect(final_S_overlap_dmp, bengtsson2014a_S3_up$ProteinID))
+final_S_overlap_bengtsson2014a_down <- unique(intersect(final_S_overlap_dmp, bengtsson2014a_S3_down$ProteinID))
+
+length(final_S_overlap_bengtsson2014a_up)
+length(final_S_overlap_bengtsson2014a_down)
+
+bengtsson2014a_S3_up[which(bengtsson2014a_S3_up$ProteinID %in% final_S_overlap_bengtsson2014a_up),-2]
+bengtsson2014a_S3_down[which(bengtsson2014a_S3_down$ProteinID %in% final_S_overlap_bengtsson2014a_down),-2]
+
+venn.plot <- func_venn_diagram_3(final_S_overlap_dmp, 
+                                 bengtsson2014a_S3_up$ProteinID,
+                                 bengtsson2014a_S3_down$ProteinID,
+                                 lab1="S>T", lab2 = "BABA up", lab3 = "BABA down",
+                                 #position_val = c(0,0,0),
+                                 dist_val = c(0.2, 0.2, 0.1))
+plot.new()
+grid.draw(venn.plot)
+
+# which genes are overlapping
+final_S_overlap_bengtsson2014a_up
+final_S_overlap_bengtsson2014a_down
+
+# Hypergeometric test
+func_phyper(Set1 = bengtsson2014a_S3_up$ProteinID,
+            Set2 = final_S_overlap_dmp,
+            nTotal = bengtsson2014a_total)
+# 0.9996391
+
+func_phyper(Set1 = bengtsson2014a_S3_down$ProteinID,
+            Set2 = final_S_overlap_dmp,
+            nTotal = bengtsson2014a_total)
+# 0.9115197
+```
+
+# Zhang2014
+[Zhang et al. 2014:](http://link.springer.com/article/10.1007/s11033-013-2886-7)
+**Transcriptome characterization and sequencing-based identification of drought-responsive genes in potato**
+
+```{r Zhang2014}
+zhang2014 <- read.table("data/external/11033_2013_2886_MOESM4_ESM.txt", header = T, sep = "\t", quote = "\"")
+zhang2014_up <- read.table("data/external/11033_2013_2886_MOESM4_ESM_up.txt", header = T, sep = "\t", quote = "\"") 
+zhang2014_down <- read.table("data/external/11033_2013_2886_MOESM4_ESM_down.txt", header = T, sep = "\t", quote = "\"")
+
+zhang2014_fpkm <- read.table("data/external/11033_2013_2886_MOESM2_ESM.txt", header = T, sep = "\t")
+length(which(zhang2014_fpkm$Treatment_FPKM>0))
+# 6754
+length(which(zhang2014_fpkm$Control_FPKM>0))
+# 6419
+zhang2014_Total <- length(union(which(zhang2014_fpkm$Treatment_FPKM>0), which(zhang2014_fpkm$Control_FPKM>0)))
+# 7284
+```
+
+
+## Overlap with Zhang2014: Field
+```{r Zhang2014 field}
+# field
+venn.plot <- func_venn_diagram_3(unique(final_field_all_down$pgsc_dmg), 
+                                 zhang2014_up$Gene_id,
+                                 zhang2014_down$Gene_id,
+                                 lab1="field down", 
+                                 lab2 = "Zhang2014 up", lab3 = "Zhang2014 down")
+plot.new()
+grid.draw(venn.plot)
+
+venn.plot <- func_venn_diagram_3(unique(final_field_all_up$pgsc_dmg), 
+                                 zhang2014_up$Gene_id,
+                                 zhang2014_down$Gene_id,
+                                 lab1="field up", 
+                                 lab2 = "Zhang2014 up", lab3 = "Zhang2014 down")
+plot.new()
+grid.draw(venn.plot)
+```
+
+
+## Overlap with Zhang2014: Greenhouse
+```{r Zhang2014 greenhouse}
+venn.plot <- func_venn_diagram_3(unique(final_greenhouse_all_down$pgsc_dmg),
+                                 zhang2014_up$Gene_id,
+                                 zhang2014_down$Gene_id,
+                                 lab1="greenhouse down", 
+                                 lab2 = "Zhang2014 up", lab3 = "Zhang2014 down")
+plot.new()
+grid.draw(venn.plot)
+
+venn.plot <- func_venn_diagram_3(unique(final_greenhouse_all_up$pgsc_dmg),
+                                 zhang2014_up$Gene_id,
+                                 zhang2014_down$Gene_id,
+                                 lab1="greenhouse up", 
+                                 lab2 = "Zhang2014 up", lab3 = "Zhang2014 down")
+plot.new()
+grid.draw(venn.plot)
+```
+
+
+## Overlap with Zhang2014: Overlap of Greenhouse and Field: UP
+```{r Zhang2014 overlap of greenhouse and field UP}
+venn.plot <- func_venn_diagram_3(final_all_up_overlap,
+                                 zhang2014_up$Gene_id,
+                                 zhang2014_down$Gene_id,
+                                 lab1="overlap up", 
+                                 lab2 = "Zhang2014 up", lab3 = "Zhang2014 down")
+
+venn.plot <- func_venn_diagram_2(zhang2014_up$Gene_id,
+                                 final_all_up_overlap,
+                                 lab1 = "Zhang2014 up",
+                                 lab2 = "overlap up")
+plot.new()
+grid.draw(venn.plot)
+
+# which genes are overlapping
+intersect(zhang2014_up$Gene_id, final_all_up_overlap)
+
+# Hypergeometric test
+func_phyper(Set1 = zhang2014_up$Gene_id,
+            Set2 = final_all_up_overlap,
+            nTotal = zhang2014_Total)
+# 2.826541e-06
+```
+
+
+## Overlap with Zhang2014: Overlap of Greenhouse and Field: DOWN
+```{r Zhang2014 overlap of greenhouse and field DOWN}
+venn.plot <- func_venn_diagram_3(final_all_down_overlap,
+                                 zhang2014_up$Gene_id,
+                                 zhang2014_down$Gene_id,
+                                 lab1="overlap down", 
+                                 lab2 = "Zhang2014 up", lab3 = "Zhang2014 down")
+
+venn.plot <- func_venn_diagram_2(zhang2014_down$Gene_id,
+                                 final_all_down_overlap,
+                                 lab1 = "Zhang2014 down",
+                                 lab2 = "overlap down")
+plot.new()
+grid.draw(venn.plot)
+
+# which genes are overlapping
+intersect(zhang2014_down$Gene_id, final_all_down_overlap)
+
+# Hypergeometric test
+func_phyper(Set1 = zhang2014_down$Gene_id,
+            Set2 = final_all_down_overlap,
+            nTotal = zhang2014_Total)
+# 0.8897951
+```
+
+
+## Overlap with Zhang2014: Overlap of all conditions: T>S
+```{r Zhang2014 overlap T}
+venn.plot <- func_venn_diagram_3(zhang2014_up$Gene_id,
+                                 zhang2014_down$Gene_id,
+                                 final_T_overlap,
+                                 lab1 = "Zhang2014 up", lab2 = "Zhang2014 down",
+                                 lab3 = "overlap T>S")
+
+venn.plot <- func_venn_diagram_2(zhang2014_up$Gene_id,
+                                 final_T_overlap,
+                                 lab1 = "Zhang2014 up",
+                                 lab2 = "overlap T>S")
+plot.new()
+grid.draw(venn.plot)
+
+# which genes are overlapping
+intersect(zhang2014_up$Gene_id, final_T_overlap)
+
+# Hypergeometric test
+func_phyper(Set1 = zhang2014_up$Gene_id,
+            Set2 = final_T_overlap,
+            nTotal = zhang2014_Total)
+# 0.9999741
+```
+
+
+## Overlap with Zhang2014: Overlap of all conditions: S>T
+```{r Zhang2014 overlap S}
+venn.plot <- func_venn_diagram_3(zhang2014_up$Gene_id,
+                                 zhang2014_down$Gene_id,
+                                 final_S_overlap,
+                                 lab1 = "Zhang2014 up", lab2 = "Zhang2014 down",
+                                 lab3 = "overlap S>T")
+
+venn.plot <- func_venn_diagram_2(zhang2014_up$Gene_id,
+                                 final_S_overlap,
+                                 lab1 = "Zhang2014 up",
+                                 lab2 = "overlap S>T")
+plot.new()
+grid.draw(venn.plot)
+
+# which genes are overlapping
+intersect(zhang2014_up$Gene_id, final_S_overlap)
+
+# Hypergeometric test
+func_phyper(Set1 = zhang2014_up$Gene_id,
+            Set2 = final_S_overlap,
+            nTotal = zhang2014_Total)
+# 0.9999953
+```
+
+# Save workspace
+```{r save workspace}
+save.image("external_data.RData")
+```
+
