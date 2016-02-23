@@ -41,15 +41,32 @@ opts_knit$set(root.dir = '../')
 
 # source functions
 ```{r source functions}
-source("../libpurzel/func_cv.R")
+source("../functions/func_cv.R")
 ```
 
 
 # Load rld table
 The function ``rlog``, stands for regularized log, transforming the original count data to the log2 scale by fitting a model with a term for each sample and a prior distribution on the coefficients which is estimated from the data. This is the same kind of shrinkage (sometimes referred to as regularization, or moderation) of log fold changes used by the ``DESeq`` and ``nbinomWaldTest``.
+
+**these data come from ``DESeq_Analysis.Rmd``**
+
 ```{r load rld table}
 rld <- read.table("output/deseq2_rld_all_samples.txt", header=T, sep="\t")
 head(rld)
+```
+
+
+# Load vsd table
+The vst function calculates a ``variance stabilizing transformation`` (VST) from the fitted dispersion-mean relation(s) and then transforms the count data (normalized by division by the size factors or normalization factors), yielding a matrix of values which are now approximately homoskedastic (having constant variance along the range of mean values). The transformation also normalizes with respect to library size. The ``rlog`` is less sensitive to size factors, which can be an issue when size factors vary widely. These transformations are useful when checking for outliers or as input for machine learning techniques such as clustering or linear discriminant analysis.
+
+**these data come from ``DESeq_Analysis.Rmd``**
+
+```{r load vsd table}
+vsd <- read.table("output/deseq2_vsd_all.txt", header=T, sep="\t")
+vsd_greenhouse <- read.table("output/deseq2_vsd_greenhouse.txt", header=T, sep="\t")
+vsd_field <- read.table("output/deseq2_vsd_field.txt", header=T, sep="\t")
+
+dim(vsd)
 ```
 
 
@@ -75,10 +92,13 @@ mean(as.vector(rld["PGSC0003DMG400001537",]))
 
 # WGCNA steps
 ## Options for WGCNA
+
+**Important note:** The code below uses parallel computation where multiple cores are available. This works well when R is run from a terminal or from the Graphical User Interface (GUI) shipped with R itself, but at present it does not work with RStudio and possibly other third-party R environments. If you use RStudio or other third-party R environments, skip the ``enableWGCNAThreads()`` call below.
+
 ```{r options for WGCNA}
 # The following setting is important, do not omit.
 options(stringsAsFactors = FALSE)
-enableWGCNAThreads()
+#enableWGCNAThreads()
 ```
 
 
@@ -124,7 +144,7 @@ datExpr <- datExpr0[, 1:6000]
 ```{r Choosing the soft-thresholding power: analysis of network topology}
 powers = c(c(1:10), seq(from = 12, to=20, by=2))
 # Call the network topology analysis function
-sft = pickSoftThreshold(datExpr, powerVector = powers, verbose = 5, blockSize = 3000)
+sft = pickSoftThreshold(datExpr0, powerVector = powers, verbose = 5, blockSize = 3000)
 # Plot the results:
 #sizeGrWindow(9, 5)
 par(mfrow = c(1,2));
@@ -147,7 +167,7 @@ text(sft$fitIndices[,1], sft$fitIndices[,5], labels=powers, cex=cex1,col="red")
 
 ### One-step network construction and module detection
 ```{r One-step network construction and module detection}
-net = blockwiseModules(datExpr, power = 10, 
+net = blockwiseModules(datExpr0, power = 6, 
                        TOMType = "unsigned", minModuleSize = 30,
                        reassignThreshold = 0, mergeCutHeight = 0.25,
                        numericLabels = TRUE, pamRespectsDendro = FALSE,
@@ -240,6 +260,47 @@ plotDendroAndColors(bwnet$dendrograms[[2]],
 # 
 # single2blockwise <- match(names(singleBlockMEs), names(blockwiseMEs))
 # signif(diag(cor(blockwiseMEs[, single2blockwise], singleBlockMEs)), 3)
+```
+
+
+# Visualization of networks within R
+## Visualizing the gene network
+One way to visualize a weighted network is to plot its heatmap, Fig. 1. Each row and column of the heatmap correspond to a single gene. The heatmap can depict adjacencies or topological overlaps, with light colors denoting low adjacency (overlap) and darker colors higher adjacency (overlap). In addition, the gene dendrograms and module colors are plotted along the top and left side of the heatmap. The package provides a convenient function to create such network plots; Fig. 1 was created using the following code. This code can be executed only if the network was calculated using a single-block approach (that is, using the 1-step automatic or the step-by-step tutorials). If the networks were calculated using the block-wise approach, the user will need to modify this code to perform the visualization in each block separately. The modification is simple and we leave it as an exercise for the interested reader.
+
+```{r visualizing the gene network}
+# Calculate topological overlap anew: this could be done more efficiently by saving the TOM
+# calculated during module detection, but let us do it again here.
+dissTOM = 1-TOMsimilarityFromExpr(datExpr0, power = 6);
+
+# Transform dissTOM with a power to make moderately strong connections more visible in the heatmap
+plotTOM = dissTOM^7;
+
+# Set diagonal to NA for a nicer plot
+diag(plotTOM) = NA;
+
+# Call the plot function
+sizeGrWindow(9,9)
+TOMplot(dissim = plotTOM, 
+        dendro = geneTree, 
+        Colors = moduleColors, 
+        terrainColors = F,
+        main = "Network heatmap plot, all metabolites")
+```
+
+## Visualizing the network of eigengenes
+It is often interesting to study the relationships among the found modules. One can use the eigengenes as representative profiles and quantify module similarity by eigengene correlation. The package contains a convenient function ``plotEigengeneNetworks`` that generates a summary plot of the eigengene network. It is usually informative to add a clinical trait (or multiple traits) to the eigengenes to see how the traits fit into the eigengene network:
+```{r visualizing the network of eigengenes}
+# Recalculate module eigengenes
+MEs = moduleEigengenes(datExpr0, moduleColors)$eigengenes
+# Isolate weight from the clinical traits
+weight = as.data.frame(datTraits$weight_g);
+names(weight) = "weight"
+# Add the weight to existing module eigengenes
+MET = orderMEs(cbind(MEs, weight))
+# Plot the relationships among the eigengenes and the trait
+sizeGrWindow(5,7.5);
+par(cex = 0.9)
+plotEigengeneNetworks(MET, "", marDendro = c(0,4,1,2), marHeatmap = c(3,4,1,2), cex.lab = 0.8, xLabelsAngle= 90)
 ```
 
 

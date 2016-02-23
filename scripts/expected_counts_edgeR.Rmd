@@ -55,17 +55,17 @@ opts_knit$set(root.dir = '../')
 
 # Source R functions
 ```{r source R functions}
-source("../libpurzel/func_venn_diagram.R")
-source("../libpurzel/func_edgeR_dge.R")
-source("../libpurzel/func_pageman_res.R")
-source("../libpurzel/func_merge_sig_res_mapman.R")
-source("../libpurzel/func_edgeR_top.R")
-source("../libpurzel/func_intersecting_dge.R")
-source("../libpurzel/func_final_DGE_list.R")
-source("../libpurzel/func_order_by_MapMan_BinCode.R")
-source("../libpurzel/func_create_type.R")
-source("../libpurzel/func_combine_two_vectors.R")
-source("../libpurzel/func_combine_two_final_DGE_lists.R")
+source("../functions/func_venn_diagram.R")
+source("../functions/func_edgeR_dge.R")
+source("../functions/func_pageman_res.R")
+source("../functions/func_merge_sig_res_mapman.R")
+source("../functions/func_edgeR_top.R")
+source("../functions/func_intersecting_dge.R")
+source("../functions/func_final_DGE_list.R")
+source("../functions/func_order_by_MapMan_BinCode.R")
+source("../functions/func_create_type.R")
+source("../functions/func_combine_two_vectors.R")
+source("../functions/func_combine_two_final_DGE_lists.R")
 ```
 
 
@@ -271,6 +271,10 @@ venn.plot <- func_venn_diagram_2(rownames(res_greenhouse$top_sig_down),
                               lab1="Greenhouse", lab2="Field", filepath=NULL)
 plot.new()
 grid.draw(venn.plot)
+
+pdf("figures/venn_cultivation_condition_down.pdf", width = 4, height = 4)
+grid.draw(venn.plot)
+dev.off()
 ```
 
 
@@ -307,6 +311,10 @@ venn.plot <- func_venn_diagram_2(rownames(res_greenhouse$top_sig_up),
                               lab1="Greenhouse", lab2="Field", filepath=NULL)
 plot.new()
 grid.draw(venn.plot)
+
+pdf("figures/venn_cultivation_condition_up.pdf", width = 4, height = 4)
+grid.draw(venn.plot)
+dev.off()
 ```
 
 
@@ -473,8 +481,12 @@ venn.plot <- func_venn_diagram_2(rownames(res_field_control$top_sig_up),
 plot.new()
 grid.draw(venn.plot)
 
-head(intersect(rownames(res_field_control$top_sig_up), rownames(res_greenhouse_control$top_sig_up)))
+pdf("figures/venn_cultivation_control_tol_up.pdf", width = 4, height = 4)
+grid.draw(venn.plot)
+dev.off()
 
+
+head(intersect(rownames(res_field_control$top_sig_up), rownames(res_greenhouse_control$top_sig_up)))
 ```
 
 **CONTROL SAMPLES**
@@ -485,6 +497,10 @@ venn.plot <- func_venn_diagram_2(rownames(res_field_control$top_sig_down),
                               lab1="Field", lab2="Greenhouse", filepath=NULL)
 plot.new()
 grid.draw(venn.plot)
+
+pdf("figures/venn_cultivation_control_tol_down.pdf", width = 4, height = 4)
+grid.draw(venn.plot)
+dev.off()
 ```
 
 **DROUGHT STRESS SAMPLES**
@@ -497,6 +513,10 @@ venn.plot <- func_venn_diagram_2(rownames(res_field_stress$top_sig_up),
 # rotation.degree needs to be changed because the first area is smaller than second area!
 plot.new()
 grid.draw(venn.plot)
+
+pdf("figures/venn_cultivation_stress_tol_up.pdf", width = 4, height = 4)
+grid.draw(venn.plot)
+dev.off()
 ```
 
 **DROUGHT STRESS SAMPLES**
@@ -509,6 +529,10 @@ venn.plot <- func_venn_diagram_2(rownames(res_field_stress$top_sig_down),
 # rotation.degree needs to be changed because the first area is smaller than second area!
 plot.new()
 grid.draw(venn.plot)
+
+pdf("figures/venn_cultivation_stress_tol_down.pdf", width = 4, height = 4)
+grid.draw(venn.plot)
+dev.off()
 ```
 
 **Compare 4 different DGE**
@@ -525,6 +549,8 @@ venn.plot <- func_venn_diagram_4(rownames(res_field_control$top_sig_up),
                               filepath=NULL)
 plot.new()
 grid.draw(venn.plot)
+
+# save as: "venn_all_conditions_tol_up.pdf"
 ```
 
 Negative logFC which means **LOWER** expression in tolerant than in sensitive cultivars
@@ -540,6 +566,8 @@ venn.plot <- func_venn_diagram_4(rownames(res_field_control$top_sig_down),
                               filepath=NULL)
 plot.new()
 grid.draw(venn.plot)
+
+# save as: "venn_all_conditions_tol_down.pdf"
 ```
 
 
@@ -1806,6 +1834,17 @@ length(which(assoc_pgsc_all$identifier %in% counts_keep_rownames))
 assoc_pgsc_keep <- assoc_pgsc_all[which(assoc_pgsc_all$identifier %in% counts_keep_rownames), ]
 
 write.table(assoc_pgsc_keep, "output/assoc_pgsc_keep.txt", sep="\t", row.names = F)
+```
+
+# genes from MapMan Bin stress.abiotic.drought --> Code: 20.2.3
+```{r genes from stress.abiotic.drought}
+mapman_drought_stress <- merge_mapman_pgsc_dmg[which(grepl("20.2.3", merge_mapman_pgsc_dmg$BINCODE)),]
+write.table(mapman_drought_stress, "output/mapman_drought_stress.txt", sep = "\t", row.names = F)
+
+
+# heat stress
+mapman_heat_stress <- merge_mapman_pgsc_dmg[which(grepl("20.2.1", merge_mapman_pgsc_dmg$BINCODE)),]
+write.table(mapman_heat_stress, "output/mapman_heat_stress.txt", sep = "\t", row.names = F)
 ```
 
 

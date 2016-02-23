@@ -43,10 +43,10 @@ opts_knit$set(root.dir = '../')
 
 # Source R functions
 ```{r source R functions}
-source("../libpurzel/func_process_corto.R")
-source("../libpurzel/func_concatenate_two_columns.R")
-source("../libpurzel/func_order_by_MapMan_BinCode.R")
-source("../libpurzel/func_corto_plot.R")
+source("../functions/func_process_corto.R")
+source("../functions/func_concatenate_two_columns.R")
+source("../functions/func_order_by_MapMan_BinCode.R")
+source("../functions/func_corto_plot.R")
 ```
 
 
@@ -407,18 +407,20 @@ corto_tolerance_sig_weak <- func_corto_plot2(corto_tolerance_merge2_ordered_part
 ```{r heatmap_without_dendrogram_greenhouse_p_smaller_0.001, fig.width=12, fig.height=15, fig.show='asis'}
 
 func_corto_heatmap(corto_data = corto_greenhouse_sig_strict[,c(3:6)],
-                     bin_names = corto_greenhouse_sig_strict$BinName,
-                     col_breaks_greenhouse = TRUE,
-                     show_col_dend = FALSE, 
-                     margins_values = c(8,50) )
+                   bin_names = corto_greenhouse_sig_strict$BinName,
+                   col_breaks_greenhouse = TRUE,
+                   show_col_dend = FALSE, 
+                   margins_values = c(8,50),
+                   bin_codes = corto_greenhouse_sig_strict$Bin)
 
-pdf("figures/corto_greenhouse_strict.pdf", width=11, height=15)
+pdf("figures/corto_greenhouse_strict_2.pdf", width=11, height=15)
 
 func_corto_heatmap(corto_data = corto_greenhouse_sig_strict[,c(3:6)],
-                     bin_names = corto_greenhouse_sig_strict$BinName,
-                     col_breaks_greenhouse = TRUE,
-                     show_col_dend = FALSE, 
-                     margins_values = c(8,50) )
+                   bin_names = corto_greenhouse_sig_strict$BinName,
+                   col_breaks_greenhouse = TRUE,
+                   show_col_dend = FALSE, 
+                   margins_values = c(8,50),
+                   bin_codes = corto_greenhouse_sig_strict$Bin)
 dev.off()
 ```
 
@@ -452,18 +454,20 @@ dev.off()
 ```{r heatmap_without_dendrogram_field_p_smaller_0.001, fig.width=12, fig.height=12, fig.show='asis'}
 
 func_corto_heatmap(corto_data = corto_field_sig_strict[,c(3:6)],
-                     bin_names = corto_field_sig_strict$BinName,
-                     col_breaks_greenhouse = TRUE,
-                     show_col_dend = FALSE, 
-                     margins_values = c(8,50) )
+                   bin_names = corto_field_sig_strict$BinName,
+                   col_breaks_greenhouse = TRUE,
+                   show_col_dend = FALSE, 
+                   margins_values = c(8,50),
+                   bin_codes = corto_field_sig_strict$Bin)
 
-pdf("figures/corto_field_strict.pdf", width=12, height=9)
+pdf("figures/corto_field_strict_2.pdf", width=12, height=9)
 
 func_corto_heatmap(corto_data = corto_field_sig_strict[,c(3:6)],
-                     bin_names = corto_field_sig_strict$BinName,
-                     col_breaks_greenhouse = TRUE,
-                     show_col_dend = FALSE, 
-                     margins_values = c(8,50) )
+                   bin_names = corto_field_sig_strict$BinName,
+                   col_breaks_greenhouse = TRUE,
+                   show_col_dend = FALSE, 
+                   margins_values = c(8,50),
+                   bin_codes = corto_field_sig_strict$Bin)
 dev.off()
 ```
 
@@ -502,16 +506,18 @@ func_corto_heatmap(corto_data = corto_tolerance_sig_strict[,c(3:10)],
                      col_breaks_greenhouse = TRUE,
                      show_col_dend = FALSE, 
                      margins_values = c(10,50),
-                     srtCol_value = 270)
+                     srtCol_value = 270,
+                   bin_codes = corto_tolerance_sig_strict$Bin)
 
-pdf("figures/corto_tolerance_strict.pdf", width=16, height=14)
+pdf("figures/corto_tolerance_strict_2.pdf", width=16, height=14)
 
 func_corto_heatmap(corto_data = corto_tolerance_sig_strict[,c(3:10)],
-                     bin_names = corto_tolerance_sig_strict$BinName,
-                     col_breaks_greenhouse = TRUE,
-                     show_col_dend = FALSE, 
-                     margins_values = c(10,70),
-                     srtCol_value = 270)
+                   bin_names = corto_tolerance_sig_strict$BinName,
+                   col_breaks_greenhouse = TRUE,
+                   show_col_dend = FALSE, 
+                   margins_values = c(10,70),
+                   srtCol_value = 270,
+                   bin_codes = corto_tolerance_sig_strict$Bin)
 dev.off()
 ```
 

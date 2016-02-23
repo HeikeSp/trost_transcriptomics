@@ -46,10 +46,10 @@ opts_knit$set(root.dir = '../')
 ### Source R functions
 ```{r Source R functions, include=FALSE}
 # source functions
-source("../libpurzel/colors.R")
-source("../libpurzel/func_pca_plots.R")
-source("../libpurzel/func_cor_mtest.R")
-source("../libpurzel/func_specific_genes.R")
+source("../functions/colors.R")
+source("../functions/func_pca_plots.R")
+source("../functions/func_cor_mtest.R")
+source("../functions/func_specific_genes.R")
 ```
 
 
@@ -666,9 +666,9 @@ length(Reduce(intersect, identified_transcripts_per_sample_idx))
 length(Reduce(intersect, high_conf_transcripts_per_sample_idx))
 # 14211 --> number of commonly expressed genes among all samples
 
-# union
-length(Reduce(union, identified_transcripts_per_sample_idx))
-length(Reduce(union, high_conf_transcripts_per_sample_idx))
+# union: number of genes that are identified/expressed in at least one sample
+length(Reduce(union, identified_transcripts_per_sample_idx)) # 37700
+length(Reduce(union, high_conf_transcripts_per_sample_idx)) # 26234
 
 field_a_c <- Reduce(intersect, high_conf_transcripts_per_sample_idx[c(1,33,41)])
 field_d_c <- Reduce(intersect, high_conf_transcripts_per_sample_idx[c(2,34,42)])

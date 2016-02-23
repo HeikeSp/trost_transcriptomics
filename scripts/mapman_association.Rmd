@@ -49,7 +49,7 @@ opts_knit$set(root.dir = '../')
 
 # Source R functions
 ```{r source R functions}
-source("../libpurzel/func_order_by_MapMan_BinCode.R")
+source("../functions/func_order_by_MapMan_BinCode.R")
 ```
 
 

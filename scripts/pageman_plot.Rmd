@@ -42,7 +42,7 @@ opts_knit$set(root.dir = '../')
 
 # Source R functions
 ```{r source R functions}
-source("../libpurzel/func_pageman_plot.R")
+source("../functions/func_pageman_plot.R")
 ```
 
 
