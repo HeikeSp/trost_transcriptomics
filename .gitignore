@@ -15,3 +15,7 @@
 *.tar.*
 *.tar
 *.cdr
+*.xls
+*.zip
+*.bmp
+*.psd
