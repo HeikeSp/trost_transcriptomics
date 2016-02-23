@@ -50,11 +50,11 @@ opts_knit$set(root.dir = '../')
 
 # Source R functions
 ```{r source R functions, include=FALSE}
-source("../libpurzel/colors.R")
-source("../libpurzel/func_pca_plots.R")
-source("../libpurzel/func_aggregate_values.R")
-source("../libpurzel/func_deseq2_pipeline.R")
-source("../libpurzel/func_cv.R")
+source("../functions/colors.R")
+source("../functions/func_pca_plots.R")
+source("../functions/func_aggregate_values.R")
+source("../functions/func_deseq2_pipeline.R")
+source("../functions/func_cv.R")
 ```
 
 
@@ -270,6 +270,10 @@ The two functions, ``rlog`` and ``varianceStabilizingTransformation``, have an a
 ``blind=FALSE`` should be used for transforming data for downstream analysis, where the full use of the design information should be made. ``blind=FALSE`` will skip re-estimation of the dispersion trend, if this has already been calculated. 
 If many of genes have large differences in counts due to the experimental design, it is important to set ``blind=FALSE`` for downstream analysis.
 
+``varianceStabilizingTransformation`` returns a ``DESeqTransform`` if a ``DESeqDataSet`` was provided, or returns a a matrix if a count matrix was provided. Note that for ``DESeqTransform`` output, the matrix of transformed values is stored in ``assay(vsd)``. 
+
+``getVarianceStabilizedData`` also returns a matrix.
+
 ```{r rlog-transformed data}
 rld <- rlog(dds)
 
@@ -312,6 +316,17 @@ plot( log2( 1+counts(dds_field, normalized=TRUE)[, 1:2] ), col="#00000020", pch=
 plot( assay(rld_field)[, 1:2], col="#00000020", pch=20, cex=0.3 )
 
 par(mfrow = c(1,1))
+
+# variance Stabilizing Transformation (vst) per cultivation type
+vsd_greenhouse <- getVarianceStabilizedData(dds_greenhouse)
+vsd_field <- getVarianceStabilizedData(dds_field)
+dim(vsd_field)
+vsd_all <- getVarianceStabilizedData(dds)
+
+# save vsd matrices
+write.table(vsd_all, "output/deseq2_vsd_all.txt", sep="\t")
+write.table(vsd_greenhouse, "output/deseq2_vsd_greenhouse.txt", sep="\t")
+write.table(vsd_field, "output/deseq2_vsd_field.txt", sep="\t")
 ```
 
 **Per-gene standard deviation (taken across samples), against the rank of the mean, for the shifted logarithm log2(n + 1) (left), the regularized log transformation (center) and the variance stabilizing transformation (right).**
@@ -968,9 +983,92 @@ table(pred.svm, relevel(data.testS4$condition, 2))
 table(pred.rf, relevel(data.testS4$condition, 2))
 ```
 
+# Heatmap of genes from mapman bin stress.abiotic.drought
+```{r heatmap of genes from mapman bin stress.abiotic.drought}
+rld_assay <- assay(rld)
+dim(rld_assay)
+
+mapman_drought_stress <- read.table("output/mapman_drought_stress.txt", sep = "\t", header = T)
+#mapman_drought_stress <- read.table("output/mapman_heat_stress.txt", sep = "\t", header = T)
+
+# number of unique genes that are annotated as drought stress related in mapman
+length(unique(mapman_drought_stress$pgsc_dmg))  # 72
+
+# get rows where those genes are in filtered reads table
+mapman_drought_stress_idx <- which(rownames(rld_assay) %in% mapman_drought_stress$pgsc_dmg)
+length(mapman_drought_stress_idx) # 62
+
+# there are 10 genes not present in the dataset because they were filtered out at the beginning (to few reads)
+setdiff(mapman_drought_stress$pgsc_dmg, rownames(rld_assay))
+
+rld_mapman_drought_stress <- rld_assay[mapman_drought_stress_idx,]
+colnames(rld_mapman_drought_stress) <- samplelist_ordered$sample_name
+
+cols_treatment_heatmap <- rep(cols_treatment[1], ncol(rld_mapman_drought_stress))
+cols_treatment_heatmap[samplelist_ordered$condition=="drought stress"] <- cols_treatment[2]
+
+cols_treatment_heatmap <- rep(cols_treatment_sample_time[1], ncol(rld_mapman_drought_stress))
+cols_treatment_heatmap[samplelist_ordered$cultivation_condition=="field.drought stress"] <- cols_treatment_sample_time[2]
+cols_treatment_heatmap[samplelist_ordered$cultivation_condition=="greenhouse.control"] <- cols_treatment_sample_time[3]
+cols_treatment_heatmap[samplelist_ordered$cultivation_condition=="greenhouse.drought stress"] <- cols_treatment_sample_time[4]
+
+pdf("figures/heatmap_rld_mapman_drought_stress_bin.pdf", 12, 10)
+heatmap.2(rld_mapman_drought_stress, 
+          scale = "row", 
+          trace = "none", 
+          dendrogram = "both", 
+          margins = c(5, 10),
+          ColSideColors = cols_treatment_heatmap,
+          col = colorRampPalette( rev(brewer.pal(9, "RdBu")) )(255) )
+dev.off()
+
+# only greenhouse
+rld_greenhouse_assay <- assay(rld_greenhouse)
+rld_greenhouse_mapman_drought_stress <- rld_greenhouse_assay[mapman_drought_stress_idx,]
+colnames(rld_greenhouse_mapman_drought_stress) <- samplelist_ordered_g$sample_name
+cols_treatment_heatmap_g <- rep(cols_treatment[1], ncol(rld_greenhouse_mapman_drought_stress))
+cols_treatment_heatmap_g[samplelist_ordered_g$condition=="drought stress"] <- cols_treatment[2]
+
+#my_breaks <- c(seq(-4,-1.1,length=100),seq(-1,1,length=100),seq(1.1,4,length=100))
+my_palette <- colorRampPalette( rev(brewer.pal(9, "RdBu")) )(299)
+
+pdf("figures/heatmap_rld_greenhouse_mapman_drought_stress_bin.pdf", 10, 10)
+heatmap.2(rld_greenhouse_mapman_drought_stress, 
+          scale = "row", 
+          trace = "none", 
+          dendrogram = "both", 
+          margins = c(5, 10),
+          ColSideColors = cols_treatment_heatmap_g,
+          col = my_palette)
+          #breaks = my_breaks)
+dev.off()
+
+# only field
+rld_field_assay <- assay(rld_field)
+rld_field_mapman_drought_stress <- rld_field_assay[mapman_drought_stress_idx,]
+colnames(rld_field_mapman_drought_stress) <- samplelist_ordered_g$sample_name
+cols_treatment_heatmap_f <- rep(cols_treatment[1], ncol(rld_field_mapman_drought_stress))
+cols_treatment_heatmap_f[samplelist_ordered_f$condition=="drought stress"] <- cols_treatment[2]
+
+#my_breaks <- c(seq(-4,-1.1,length=100),seq(-1,1,length=100),seq(1.1,4,length=100))
+my_palette <- colorRampPalette( rev(brewer.pal(9, "RdBu")) )(299)
+
+pdf("figures/heatmap_rld_field_mapman_drought_stress_bin.pdf", 10, 10)
+heatmap.2(rld_field_mapman_drought_stress, 
+          scale = "row", 
+          trace = "none", 
+          dendrogram = "both", 
+          margins = c(5, 10),
+          ColSideColors = cols_treatment_heatmap_f,
+          col = my_palette)
+          #breaks = my_breaks)
+dev.off()
+```
 
 
-```{r}
+
+# save workspace
+```{r save workspace}
 save.image("DESeq_Analysis.RData")
 ```
 
