@@ -37,7 +37,7 @@ opts_chunk$set(fig.width=5, fig.height=5, cache=FALSE, highlight = TRUE, fig.sho
 opts_knit$set(root.dir = '../')
 
 # load workspace
-#load("external_data.RData")
+# load("external_data.RData")
 ```
 
 
