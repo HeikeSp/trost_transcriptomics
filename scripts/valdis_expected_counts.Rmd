@@ -1,0 +1,290 @@
+---
+title: "Expected Count Data Analysis of VALDIS Experiment"
+author: "Heike Sprenger"
+date: "Monday, October 24, 2016"
+output:
+  html_document:
+    highlight: tango
+    number_section: yes
+    theme: cerulean
+    toc: yes
+    toc_float: true
+    toc_depth: 4
+---
+
+# Set working directory  
+```{r set working directory}
+#getwd()
+#setwd("D:/work/repos/trost_transcriptomics")
+```
+
+[solution for issue with working directory and knitr](https://github.com/yihui/knitr/issues/277)
+
+# Load workspace, packages and scripts
+```{r load workspace}
+# load packages
+library(knitr)
+library(VennDiagram)
+
+# set options for knitr
+opts_chunk$set(fig.width=5, fig.height=5)
+opts_knit$set(root.dir = '../')
+
+# load workspace
+#load("valdis_exp_counts.RData")
+```
+
+
+# Load PGSC annotation file
+```{r load PGSC annotation file}
+assoc_pgsc <- read.table("data/PGSC_DM_v3.4_g2t2c2p2func_edit.txt")
+colnames(assoc_pgsc) <- c("pgsc_dmg", "pgsc_dmt", "pgsc_dmc", "pgsc_dmp", "func")
+head(assoc_pgsc)
+```
+
+
+# Samplelist processing
+```{r child = 'valdis_modify_rnaseq_samplelist.Rmd'}
+```
+
+
+# Expected counts
+## Read input data: Expected counts per gene (from RSEM)
+```{r load exp counts}
+exp_counts_genes <- read.table("data/valdis/ReadCounts_allSamples.txt", header = TRUE, sep = "\t", row.names = 1)
+dim(exp_counts_genes)
+
+class(exp_counts_genes)
+
+# change colnames of exp_counts_genes
+colnames(exp_counts_genes)
+#colnames(exp_counts_genes) <- samplelist_modified$sample_name
+
+# look at first rownames
+head(rownames(exp_counts_genes))
+
+# plot histogram of log-counts of 1st column (=sample)
+hist(log(exp_counts_genes[,1]), breaks = 100, main = "log counts of all genes for first sample")
+```
+
+
+## Round expected counts to achieve integer values
+```{r round exp counts}
+# class of values for one sample before rounding
+class(exp_counts_genes$A)
+
+# rounding
+exp_counts_genes_rounded <- round(exp_counts_genes, digits = 0)
+
+# convert to integer
+#exp_counts_genes_rounded_int <- sapply(exp_counts_genes_rounded, as.integer)
+#exp_counts_genes_rounded_int <- as.data.frame(exp_counts_genes_rounded_int)
+#exp_counts_genes_rounded <- as.integer(exp_counts_genes_rounded)
+
+#class(exp_counts_genes_rounded_int)
+
+# class of rounded values --> should be integer
+class(exp_counts_genes_rounded$A)
+# --> is not integer, will be solved in next code chunk!
+
+# other possibilities for rounding
+# exp_counts_genes_ceiling <- ceiling(exp_counts_genes) # always round up
+# exp_counts_genes_floor <- floor(exp_counts_genes) # always round down
+
+# plot histogram of log-transformed counts after different rounding procedures
+par(mfrow=c(1,2))
+hist(log(exp_counts_genes[,1]), breaks=100, main="original", ylim = c(0,2000))
+hist(log(exp_counts_genes_rounded[,1]), breaks=100, main="rounded")
+#hist(log(exp_counts_genes_ceiling[,1]), breaks=100, main="ceiling")
+#hist(log(exp_counts_genes_floor[,1]), breaks=100, main="floor")
+par(mfrow=c(1,1))
+
+# plot(log(exp_counts_genes[,1]), log(exp_counts_genes_rounded[,1]))
+# identical(exp_counts_genes[1,1], exp_counts_genes_rounded[1,1])
+```
+
+
+## Change class for all columns from numeric to integer
+```{r change counts to integer class}
+class(exp_counts_genes_rounded$A)
+
+for (i in 1:114) {
+  exp_counts_genes_rounded[,i] <- as.integer(exp_counts_genes_rounded[,i])
+}
+
+class(exp_counts_genes_rounded$A)
+class(exp_counts_genes_rounded)
+
+identical(exp_counts_genes, exp_counts_genes_rounded)
+```
+
+
+## Summary of means of ORIGINAL expected counts
+```{r summary of means of original exp counts}
+# calculate the mean per row (per gene over all samples)
+exp_counts_genes_mean <- apply(exp_counts_genes, 1, mean) 
+head(exp_counts_genes_mean)
+
+# histogram of log10-transformed means per gene
+hist(log10(exp_counts_genes_mean), col = "grey", breaks=30)
+
+# summary of means per gene
+summary(exp_counts_genes_mean)
+
+length(which(exp_counts_genes_mean == 0))
+# 10401 genes have mean of zero (that is they have no counts at all, sum is also zero -> see below)
+length(which(exp_counts_genes_mean < 1))
+# 18600 genes have mean less than 1
+length(which(exp_counts_genes_mean >= 1))
+# 24373 genes have mean greater than or equal to 1
+```
+
+
+## Summary of means of ROUNDED expected counts
+```{r summary of means of rounded exp counts}
+# calculate the mean per row (per gene over all samples)
+exp_counts_genes_rounded_mean <- apply(exp_counts_genes_rounded, 1, mean)
+head(exp_counts_genes_rounded_mean)
+
+# histogram of log10-transformed means per gene
+hist(log10(exp_counts_genes_rounded_mean))
+
+# summary of means per gene
+summary(exp_counts_genes_rounded_mean)
+
+length(which(exp_counts_genes_rounded_mean == 0))
+# 10401 genes have mean of zero
+length(which(exp_counts_genes_rounded_mean != 0))
+# 32572 genes have mean unequal to zero
+length(which(exp_counts_genes_rounded_mean < 1))
+# 18600 genes have mean less than 1
+length(which(exp_counts_genes_rounded_mean >= 1))
+# 24373 genes have mean greater than or equal to 1
+```
+
+
+# Filtering of complete exp counts table
+```{r filtering of complete exp counts table}
+# use only genes with mean != 0 (36887 genes)
+exp_counts_genes_rounded_part <- exp_counts_genes_rounded [which (exp_counts_genes_rounded_mean != 0) , ]
+dim(exp_counts_genes_rounded_part)
+# 32572 genes
+
+# calculate the mean of the rows (per gene over all samples), BUT only genes with mean != 0
+exp_counts_genes_rounded_part_mean <- apply(exp_counts_genes_rounded_part, 1, mean) 
+
+# histogram of log10-transformed means per gene
+hist(log10(exp_counts_genes_rounded_part_mean), breaks = 30, col = "grey")
+
+# summary of means per gene, BUT Only genes with mean != 0
+summary(exp_counts_genes_rounded_part_mean)
+summary(exp_counts_genes_rounded_part_mean)[2]
+
+# filtering threshold: 1.0 is the 1st Qu. of means per gene
+
+length(which(exp_counts_genes_rounded_part_mean >= 1.0))
+# 24373 genes of part of dataset have mean >= 1.0
+length(which(exp_counts_genes_rounded_part_mean < 1.0))
+# 8199 genes of part of dataset have mean < 1.0
+
+# histogram of log10-transformed means per gene, BUT only genes with mean >= 1.0
+hist(log10(exp_counts_genes_rounded_part_mean[which(exp_counts_genes_rounded_part_mean >= 1.0)]), breaks = 25, col = "grey")
+
+rownames_filtered <- rownames(exp_counts_genes_rounded_part)[which(exp_counts_genes_rounded_part_mean >= 1.0)]
+```
+
+
+## Summary of sums of ROUNDED expected counts
+```{r summary of sums of ROUNDED expected counts}
+#############
+# calculate the sum of the rows (per gene over all samples)
+exp_counts_genes_rounded_sum <- apply(exp_counts_genes_rounded, 1, sum) 
+#############
+
+# calculate sum, only genes with mean != 0
+exp_counts_genes_rounded_part_sum <- apply(exp_counts_genes_rounded_part, 1, sum)
+
+# summary of sum per gene
+summary(exp_counts_genes_rounded_part_sum)
+
+length(which(exp_counts_genes_rounded_part_sum < 110))
+# 8136 of 32572 genes of part of dataset have sum < 110 (which is 1st Qu.)
+
+length(which(exp_counts_genes_rounded_sum == 0))
+# 10401 of 42973 genes have no read in any sample (AFTER rounding, complete dataset)
+
+
+#############
+# calculate the sum of the rows (per gene over all samples) for dataset BEFORE ROUNDING
+exp_counts_genes_sum <- apply(exp_counts_genes, 1, sum) 
+length(which(exp_counts_genes_sum == 0))
+# 10401 of 42973 genes have no read in any sample (BEFORE rounding, complete dataset)
+#############
+```
+
+# Save filtered dataset for expected counts (after intersection)
+```{r save filtered dataset for expected counts}
+# save only rounded exp counts that fulfill criteria in field and greenhouse dataset
+counts_keep <- exp_counts_genes_rounded[which( rownames(exp_counts_genes) %in% rownames_filtered) , ]
+dim(counts_keep)
+# 24373
+
+# calculate mean for filtered dataset
+counts_keep_mean <- apply(counts_keep, 1, mean)
+summary(counts_keep_mean)
+
+hist(log10(counts_keep_mean), main = "Mean of filtered counts", breaks = 50)
+
+# calculate sum for filtered dataset
+counts_keep_sum <- apply(counts_keep, 1, sum)
+summary(counts_keep_sum)
+
+hist(log10(counts_keep_sum), main = "Sum of filtered counts", breaks = 50)
+
+# calculate variance for filtered dataset (per gene)
+counts_keep_var <- apply(counts_keep, 1, var)
+
+# calculate log2 of mean and variance (per gene)
+counts_keep_var_log2 <- apply(log2(counts_keep), 1, var)
+counts_keep_mean_log2 <- apply(log2(counts_keep), 1, mean)
+
+# plot mean vs. variance
+plot(log2(counts_keep_mean), log2(counts_keep_var))
+plot(counts_keep_mean_log2, counts_keep_var_log2)
+
+# export rounded exp counts that fulfill criteria in field and greenhouse dataset
+write.table(counts_keep, "output/valdis/counts_keep.txt", sep="\t")
+```
+
+
+# calculate colsums
+```{r calculate colsums}
+sum_per_sample <- colSums(exp_counts_genes)
+
+ymin <- min(samplelist[,c(13,14,16,18)])
+ymax <- max(samplelist[,c(13,14,16,18)])
+
+xmin <- min(sum_per_sample)
+xmax <- max(sum_per_sample)
+
+all_min <- min(xmin, ymin)
+all_max <- min(xmax, ymax)
+
+plot(samplelist$raw.trimmed, sum_per_sample, xlim = c(all_min, all_max), ylim = c(all_min, all_max))
+abline(0,1)
+plot(samplelist$raw.untrimmed, sum_per_sample, xlim = c(all_min, all_max), ylim = c(all_min, all_max))
+abline(0,1)
+plot(samplelist$mapped, sum_per_sample, xlim = c(all_min, all_max), ylim = c(all_min, all_max))
+abline(0,1)
+plot(samplelist$onTranscripts, sum_per_sample, xlim = c(all_min, all_max), ylim = c(all_min, all_max))
+abline(0,1)
+```
+
+
+# Save workspace
+```{r save workspace}
+sessionInfo()
+save.image("valdis_exp_counts.RData")
+```
+
+

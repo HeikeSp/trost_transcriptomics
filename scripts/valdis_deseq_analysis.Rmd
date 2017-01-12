@@ -1,0 +1,630 @@
+---
+title: "DESeq Analysis"
+author: "Heike Sprenger"
+date: "Monday, October 24, 2016"
+output:
+  html_document:
+    highlight: tango
+    number_section: yes
+    theme: cerulean
+    toc: yes
+    toc_float: true
+    toc_depth: 4
+---
+
+**Input: Expected counts that are filtered**
+
+# Set working directory
+```{r set working directory}
+#getwd()
+#setwd("D:/work/repos/trost_transcriptomics")
+```
+
+[solution for issue with working directory and knitr](https://github.com/yihui/knitr/issues/277)
+
+# Load workspace, packages and scripts
+```{r load workspace, message=FALSE}
+# load packages
+#library(knitr)
+#library(pander)
+library(DESeq2)
+library(gplots)
+library(vsn)
+library(RColorBrewer)
+# library(genefilter)
+library(pcaMethods)
+#library(MLSeq)
+#library(genefilter)
+#library(biomaRt)
+library(pheatmap)
+#library(kernlab)
+
+#source("https://bioconductor.org/biocLite.R")
+#biocLite("BiocParallel")
+library(BiocParallel)
+#register(MulticoreParam(4)) # not supported on Windows. Use SnowParam instead.
+detectCores()
+register(SnowParam(8))
+
+# # set options for pander
+# panderOptions('table.split.table', 200)
+# 
+# # set options for knitr
+# opts_chunk$set(fig.width=5, fig.height=5, cache=FALSE, highlight = TRUE, fig.show="asis")
+# opts_knit$set(root.dir = '../')
+
+# load("valdis_deseq_analysis.RData")
+```
+
+
+# Source R functions
+```{r source R functions, include=FALSE}
+# source("../functions/colors.R")
+# source("../functions/func_pca_plots.R")
+# source("../functions/func_aggregate_values.R")
+# source("../functions/func_deseq2_pipeline.R")
+source("../functions/func_deseq2_pipeline_valdis.R")
+# source("../functions/func_cv.R")
+source("../functions/func_venn_diagram.R")
+```
+
+
+# Load PGSC annotation file
+```{r load PGSC annotation}
+assoc_pgsc <- read.table("data/PGSC_DM_v3.4_g2t2c2p2func_edit.txt")
+colnames(assoc_pgsc) <- c("pgsc_dmg", "pgsc_dmt", "pgsc_dmc", "pgsc_dmp", "func")
+head(assoc_pgsc)
+```
+
+
+# Load count data and samplelist
+```{r load count data and samplelist}
+counts_keep <- read.table("output/valdis/counts_keep.txt", sep="\t", header=T)
+samplelist_ordered <- read.table("output/valdis/samplelist_modified.txt", sep="\t", header=T)
+#samplelist_ordered <- read.table("output/samplelist_ordered2.txt", sep="\t", header=T)
+head(samplelist_ordered)
+
+rownames(samplelist_ordered) <- samplelist_ordered$letter_code
+samplelist_ordered$batch <- as.factor(as.integer(samplelist_ordered$trial))
+```
+
+# DESeq Analysis
+## build DESeqDataSet
+```{r build DESeqDataSet}
+ddsFullCountTable <- DESeqDataSetFromMatrix(
+  countData = counts_keep,
+  colData = samplelist_ordered,
+  design = ~ lines_alias + treatment)
+
+
+ddsFullCountTable
+
+
+ddsFullCountTable_trial <- DESeqDataSetFromMatrix(
+  countData = counts_keep,
+  colData = samplelist_ordered,
+  design = ~ lines_alias + treatment + batch)
+
+ddsFullCountTable_trial
+```
+
+
+## run differential expression pipeline
+The function `DESeq` runs the following functions in order:
++ `dds <- estimateSizeFactors(dds)`
++ `dds <- estimateDispersions(dds)`
++ `dds <- nbinomWaldTest(dds)`
+```{r run differential expression pipeline}
+# all samples
+Sys.time()
+dds <- DESeq(ddsFullCountTable, parallel = TRUE)
+Sys.time()
+
+Sys.time()
+dds_trial <- DESeq(ddsFullCountTable_trial, parallel = TRUE)
+Sys.time()
+```
+
+
+## inspecting results table
+Results tables are generated using the function ``results``, which extracts a results table with log2 fold changes, p values and adjusted p values. With no arguments to results, the results will be for the last variable in the design formula, and if this is a factor, the comparison will be the last level of this variable over the first level.
+```{r inspecting results table}
+Sys.time()
+res <- results(dds, parallel = TRUE,
+               contrast = c("treatment","drought stress","control"))
+Sys.time()
+#res
+
+# meaning of the columns:
+#mcols(res, use.names=TRUE)
+
+res_trial <- results(dds_trial, parallel = TRUE,
+                     contrast = c("treatment","drought stress","control"))
+```
+
+
+### significant results
+```{r significant results}
+resSig <- res[ which(res$padj < 0.05 & abs(res$log2FoldChange)>1), ]
+dim(resSig) # 3730
+
+resSig_trial <- res_trial[ which(res_trial$padj < 0.05 & abs(res_trial$log2FoldChange)>1), ]
+dim(resSig_trial) # 3792
+
+head(rownames(resSig))
+# head(rownames(resSig_trial))
+
+# length(intersect(rownames(resSig),rownames(resSig_trial))) # 3509
+
+resSig_down <- res[ which(res$padj < 0.05 & res$log2FoldChange<(-1)), ]
+resSig_up <- res[ which(res$padj < 0.05 & res$log2FoldChange>1), ]
+dim(resSig_down)
+dim(resSig_up)
+
+# # strongest downregulation
+head( resSig[ order( resSig$log2FoldChange ), ] )
+# # strongest upregulation
+tail( resSig[ order( resSig$log2FoldChange ), ] )
+```
+
+
+## diagnostic plots
+```{r diagnostic plots}
+plotMA(res, ylim=c(-2, 2))
+plotDispEsts(dds)
+hist(res$padj, breaks=20, col="grey" )
+```
+
+
+## export results
+```{r export results}
+# write.csv(as.data.frame(res), "output/DESeq2_results.csv")
+# 
+# write.csv(as.data.frame(res_greenhouse), "output/DESeq2_results_greenhouse.csv")
+# write.csv(as.data.frame(res_field), "output/DESeq2_results_field.csv")
+```
+
+
+## rlog-transformed data
+
+The function ``rlog``, stands for regularized log, transforming the original count data to the log2 scale by fitting a model with a term for each sample and a prior distribution on the coefficients which is estimated from the data. This is the same kind of shrinkage (sometimes referred to as regularization, or moderation) of log fold changes used by the ``DESeq`` and ``nbinomWaldTest``.
+
+**Blind dispersion estimation**
+The two functions, ``rlog`` and ``varianceStabilizingTransformation``, have an argument ``blind``, for whether the transformation should be blind to the sample information specified by the design formula. When ``blind`` equals ``TRUE`` (the default), the functions will re-estimate the dispersions using only an intercept (design formula ∼ 1). This setting should be used in order to compare samples in a manner wholly unbiased by the information about experimental groups, for example to perform sample QA (quality assurance) as demonstrated below.
+
+``blind=FALSE`` should be used for transforming data for downstream analysis, where the full use of the design information should be made. ``blind=FALSE`` will skip re-estimation of the dispersion trend, if this has already been calculated. 
+If many of genes have large differences in counts due to the experimental design, it is important to set ``blind=FALSE`` for downstream analysis.
+
+``varianceStabilizingTransformation`` returns a ``DESeqTransform`` if a ``DESeqDataSet`` was provided, or returns a a matrix if a count matrix was provided. Note that for ``DESeqTransform`` output, the matrix of transformed values is stored in ``assay(vsd)``. 
+
+``getVarianceStabilizedData`` also returns a matrix.
+
+
+Note on running time: if you have many samples (e.g. 100s), the ``rlog`` function might take too long, and the ``varianceStabilizingTransformation`` is a faster choice. The rlog and VST have similar properties, but the rlog requires fitting a shrinkage term for each sample and each gene which takes time. See the DESeq2 paper for more discussion on the differences. 
+In addition, a new function ``vst`` provides an even faster version of the varianceStabilizingTransformation but calculating the global dispersion trend on a subset of the genes (default 1000). vst may be attractive for interactive EDA.
+
+```{r rlog-transformed data}
+# variance Stabilizing Transformation (vst)
+vsd <- varianceStabilizingTransformation(dds)
+vsd_trial <- varianceStabilizingTransformation(dds_trial)
+#vsd_not_blind <- varianceStabilizingTransformation(dds, blind=F)
+
+rlg <- rlog(dds)
+rlg_trial <- rlog(dds_trial)
+
+vsd.fast <- vst(dds)
+vsd_trial.fast <- vst(dds_trial)
+
+par(mfrow = c(1,2))
+plot( log2( 1+counts(dds, normalized=TRUE)[, 1:2] ), col="#00000020", pch=20, cex=0.3 )
+plot( assay(vsd)[, 1:2], col="#00000020", pch=20, cex=0.3 )
+
+plot(apply(assay(vsd), 1, mean), apply(assay(vsd), 1, var))
+
+par(mfrow = c(1,1))
+
+# # save vsd matrices
+# write.table(vsd_all, "output/deseq2_vsd_all.txt", sep="\t")
+# write.table(vsd_greenhouse, "output/deseq2_vsd_greenhouse.txt", sep="\t")
+# write.table(vsd_field, "output/deseq2_vsd_field.txt", sep="\t")
+```
+
+
+**Per-gene standard deviation (taken across samples), against the rank of the mean, for the shifted logarithm log2(n + 1) (left), the regularized log transformation (center) and the variance stabilizing transformation (right).**
+```{r effects of transformations on the variance}
+par(mfrow = c(1,3))
+meanSdPlot(log2(counts(dds,normalized=TRUE) + 1))
+#meanSdPlot(assay(vsd.fast))
+meanSdPlot(assay(vsd))
+par(mfrow = c(1,1))
+```
+
+
+## sample distances
+```{r sample distances}
+sampleDists <- dist( t( assay(vsd) ) )
+sampleDistMatrix <- as.matrix( sampleDists )
+# rownames(sampleDistMatrix) <- paste( rld$condition,
+#                                      rld$cultivar, sep="-" )
+colnames(sampleDistMatrix) <- NULL
+
+colours = colorRampPalette( rev(brewer.pal(9, "Blues")) )(255)
+heatmap.2( sampleDistMatrix, trace="none", col=colours)
+
+
+ramp <- 1:2/2
+cols <- c(rgb(ramp, 0, 0),
+          rgb(0, ramp, 0))
+# print( plotPCA( rld, intgroup = c( "cultivation", "condition"), col=cols ) )
+print( plotPCA( vsd, intgroup = c( "trial", "treatment") ) )
+print( plotPCA( vsd_trial, intgroup = c( "trial", "treatment") ) )
+print( plotPCA( vsd.fast, intgroup = c( "trial", "treatment") ) )
+print( plotPCA( vsd_trial.fast, intgroup = c( "trial", "treatment") ) )
+# print( plotPCA( rlg, intgroup = c( "trial", "treatment") ) )
+# print( plotPCA( rlg_trial, intgroup = c( "trial", "treatment") ) )
+
+print( plotPCA( vsd_trial, intgroup = c( "trial", "treatment") ) )
+
+pca_res <- pca(t( assay(vsd) ), center = T, scale = "none", nPcs = 5, method = "rnipals")
+pca_res_trial <- pca(t( assay(vsd_trial) ), center = T, scale = "none", nPcs = 5, method = "rnipals")
+
+pca_res@R2
+pca_res_trial@R2
+
+pairs(pca_res@scores, col=dds$treatment, pch=19)
+pairs(pca_res@scores, col=dds$trial, pch=19)
+#pairs(pca_res@scores, col=dds$yieldpot, pch=19)
+
+
+pdf("figures/valdis/pca_vsd_all_samples.pdf")
+palette(brewer.pal(3, "Set1"))
+#palette("default")
+plot(pca_res@scores[,1], pca_res@scores[,2], 
+     pch=c(19,17)[dds$treatment],
+     col=dds$trial, cex=2, 
+     xlab="PC1 (30.1%)",
+     ylab="PC2 (10.5%)")
+legend("topright", fill=1:3, legend=levels(dds$trial), cex=1)
+legend("topleft", pch=1:2, legend=levels(dds$treatment), cex=1)
+
+# WITH TEXT
+plot(pca_res@scores[,1], pca_res@scores[,2], 
+     pch=c(19,17)[dds$treatment],
+     col=dds$trial, cex=2, 
+     xlab="PC1 (30.1%)",
+     ylab="PC2 (10.5%)")
+text(pca_res@scores[,1], pca_res@scores[,2], labels = samplelist_ordered$lines_alias, cex = 0.7)
+legend("topright", fill=1:3, legend=levels(dds$trial), cex=1)
+legend("topleft", pch=1:2, legend=levels(dds$treatment), cex=1)
+
+# color for yield potential
+plot(pca_res@scores[,1], pca_res@scores[,2], 
+     pch=c(19,17)[dds$treatment],
+     col=samplelist_ordered$yield_potential, cex=2, 
+     xlab="PC1 (30.1%)",
+     ylab="PC2 (10.5%)")
+legend("topright", fill=1:3, legend=levels(samplelist_ordered$yield_potential), cex=1)
+legend("topleft", pch=1:2, legend=levels(dds$treatment), cex=1)
+
+# color for cross/population
+plot(pca_res@scores[,1], pca_res@scores[,2], 
+     pch=c(19,17)[dds$treatment],
+     col=samplelist_ordered$population, cex=2, 
+     xlab="PC1 (30.1%)",
+     ylab="PC2 (10.5%)")
+text(pca_res@scores[,1], pca_res@scores[,2], labels = samplelist_ordered$lines_alias, cex = 0.7)
+legend("topright", fill=1:3, legend=levels(samplelist_ordered$population), cex=1)
+legend("topleft", pch=1:2, legend=levels(dds$treatment), cex=1)
+dev.off()
+
+
+# plot(pca_res@scores[,1], pca_res@scores[,2], pch=c(19,17)[dds$treatment],
+#      col=dds$trial, cex=2, xlab="PC1 (30.1%)", ylab="PC2 (10.5%)")
+# text(pca_res@scores[,1], pca_res@scores[,2], labels = samplelist_ordered$letter_code)
+
+
+# pdf("figures/valdis/pca_vsd_trial_all_samples.pdf")
+# palette(brewer.pal(3, "Set1"))
+# #palette("default")
+# plot(pca_res_trial@scores[,1], pca_res_trial@scores[,2], 
+#      pch=c(19,17)[dds_trial$treatment],
+#      col=dds_trial$trial, cex=2, 
+#      xlab="PC1 (30.1%)",
+#      ylab="PC2 (10.5%)")
+# legend("topright", fill=1:3, legend=levels(dds_trial$trial), cex=1)
+# legend("topleft", pch=1:2, legend=levels(dds_trial$treatment), cex=1)
+# dev.off()
+```
+
+
+### deseq2 pipeline for greenhouse trial 1
+```{r deseq2 pipeline for greenhouse trial 1}
+# res_greenhouse_1_func <- func_deseq2_pipeline_trial(ddsFullCountTable, val1="greenhouse_1")
+# names(res_greenhouse_1_func)
+# 
+# func_deseq2_plots(filename="figures/deseq_res_greenhouse_1.pdf", res_greenhouse_1_func)
+```
+
+
+# Heatmaps showing the expression data of the 20 most highly expressed genes
+```{r first heatmap}
+select <- order(rowMeans(counts(dds,normalized=TRUE)),decreasing=TRUE)[1:20]
+
+nt <- normTransform(dds) # defaults to log2(x+1)
+log2.norm.counts <- assay(nt)[select,]
+df <- as.data.frame(colData(dds)[,c("treatment","trial")])
+
+#pheatmap(log2.norm.counts, cluster_rows=FALSE, show_rownames=FALSE, cluster_cols=TRUE, annotation_col=df)
+pheatmap(assay(vsd)[select,], cluster_rows=FALSE, show_rownames=FALSE, cluster_cols=TRUE, annotation_col=df)
+pheatmap(assay(vsd)[select,], cluster_rows=FALSE, show_rownames=FALSE, cluster_cols=TRUE)
+```
+
+
+# Separate data sets
+* E1: MPI big bag 2015 (ID: 72247)
+* E2: MPI field 2015 (ID: 72275)
+* E3: JKI field 2015 (ID: 72396)
+* C: Control / D: Drought stress
+
+## Separate data sets for control and drought stress
+```{r separate data sets for control and drought stress}
+# remove parents from samplelist
+samplelist_no_parents <- subset(samplelist_ordered, !(samplelist_ordered$lines_alias %in% c("Euroresa", "Albatros", "Ramses")))
+
+
+# subset for control
+samplelist_C <- droplevels(subset(samplelist_no_parents, samplelist_no_parents$treatment == "control"))
+counts_C <- counts_keep[, which(colnames(counts_keep) %in% samplelist_C$letter_code)]
+
+# subset for drought
+samplelist_D <- droplevels(subset(samplelist_no_parents, samplelist_no_parents$treatment == "drought stress"))
+counts_D <- counts_keep[, which(colnames(counts_keep) %in% samplelist_D$letter_code)]
+```
+
+
+## Separate data sets for control, drought stress and experiments
+```{r separate data sets for control, drought stress and experiments}
+# subset for E1 - control
+samplelist_E1C <- droplevels(subset(samplelist_no_parents, samplelist_no_parents$culture_id == 72247 & samplelist_no_parents$treatment == "control"))
+counts_E1C <- counts_keep[, which(colnames(counts_keep) %in% samplelist_E1C$letter_code)]
+
+# subset for E1 - drought
+samplelist_E1D <- droplevels(subset(samplelist_no_parents, samplelist_no_parents$culture_id == 72247 & samplelist_no_parents$treatment == "drought stress"))
+counts_E1D <- counts_keep[, which(colnames(counts_keep) %in% samplelist_E1D$letter_code)]
+
+# subset for E2 - control
+samplelist_E2C <- droplevels(subset(samplelist_no_parents, samplelist_no_parents$culture_id == 72275 & samplelist_no_parents$treatment == "control"))
+counts_E2C <- counts_keep[, which(colnames(counts_keep) %in% samplelist_E2C$letter_code)]
+
+# subset for E2 - drought
+samplelist_E2D <- droplevels(subset(samplelist_no_parents, samplelist_no_parents$culture_id == 72275 & samplelist_no_parents$treatment == "drought stress"))
+counts_E2D <- counts_keep[, which(colnames(counts_keep) %in% samplelist_E2D$letter_code)]
+
+# subset for E3 - control
+samplelist_E3C <- droplevels(subset(samplelist_no_parents, samplelist_no_parents$culture_id == 72396 & samplelist_no_parents$treatment == "control"))
+counts_E3C <- counts_keep[, which(colnames(counts_keep) %in% samplelist_E3C$letter_code)]
+
+# subset for E3 - drought
+samplelist_E3D <- droplevels(subset(samplelist_no_parents, samplelist_no_parents$culture_id == 72396 & samplelist_no_parents$treatment == "drought stress"))
+counts_E3D <- counts_keep[, which(colnames(counts_keep) %in% samplelist_E3D$letter_code)]
+```
+
+
+## DESeq Analysis for control
+```{r DESeq Analysis for control}
+
+```
+
+
+## E1-control
+```{r E1-control}
+dds_E1C <- DESeqDataSetFromMatrix(
+  countData = counts_E1C,
+  colData = samplelist_E1C,
+  design = ~ yield_potential)
+
+dds_E1C
+
+dds_E1C <- DESeq(dds_E1C, parallel = TRUE)
+
+vsd_E1C <- varianceStabilizingTransformation(dds_E1C)
+#vsd_fast_E1C <- vst(dds_E1C)
+
+pca_res_E1C <- pca(t( assay(vsd_E1C) ), center = T, scale = "none", nPcs = 5, method = "rnipals")
+pca_res_E1C@R2
+pairs(pca_res_E1C@scores, col=dds_E1C$yield_potential, pch=19)
+
+res_E1C <- results(dds_E1C, parallel = TRUE, contrast = c("yield_potential","high yield","low yield"))
+
+resSig_E1C <- res_E1C[ which(res_E1C$padj < 0.1), ]
+dim(resSig_E1C) # 0
+
+# strongest downregulation
+head( resSig_E1C[ order( resSig_E1C$log2FoldChange ), ] )
+# strongest upregulation
+tail( resSig_E1C[ order( resSig_E1C$log2FoldChange ), ] )
+```
+
+
+## E1-drought
+```{r E1-drought}
+dds_E1D <- DESeqDataSetFromMatrix(
+  countData = counts_E1D,
+  colData = samplelist_E1D,
+  design = ~ yield_potential)
+
+dds_E1D
+
+dds_E1D <- DESeq(dds_E1D, parallel = TRUE)
+
+vsd_E1D <- varianceStabilizingTransformation(dds_E1D)
+
+pca_res_E1D <- pca(t( assay(vsd_E1D) ), center = T, scale = "none", nPcs = 5, method = "rnipals")
+pca_res_E1D@R2
+pairs(pca_res_E1D@scores, col=dds_E1D$yield_potential, pch=19)
+
+res_E1D <- results(dds_E1D, parallel = TRUE, contrast = c("yield_potential","high yield","low yield"))
+
+# resSig_E1D <- res_E1D[ which(res_E1D$padj < 0.05 & abs(res_E1D$log2FoldChange)>1), ]
+resSig_E1D <- res_E1D[ which(res_E1D$padj < 0.1), ]
+dim(resSig_E1D) # 143
+
+# strongest downregulation
+head( resSig_E1D[ order( resSig_E1D$log2FoldChange ), ] )
+# strongest upregulation
+tail( resSig_E1D[ order( resSig_E1D$log2FoldChange ), ] )
+```
+
+
+## E2-control
+```{r E2-control}
+dds_E2C <- DESeqDataSetFromMatrix(
+  countData = counts_E2C,
+  colData = samplelist_E2C,
+  design = ~ yield_potential)
+
+dds_E2C
+
+dds_E2C <- DESeq(dds_E2C, parallel = TRUE)
+
+vsd_E2C <- varianceStabilizingTransformation(dds_E2C)
+
+pca_res_E2C <- pca(t( assay(vsd_E2C) ), center = T, scale = "none", nPcs = 5, method = "rnipals")
+pca_res_E2C@R2
+pairs(pca_res_E2C@scores, col=dds_E2C$yield_potential, pch=19)
+
+res_E2C <- results(dds_E2C, parallel = TRUE, contrast = c("yield_potential","high yield","low yield"))
+
+resSig_E2C <- res_E2C[ which(res_E2C$padj < 0.1), ]
+dim(resSig_E2C) # 563
+
+# strongest downregulation
+head( resSig_E2C[ order( resSig_E2C$log2FoldChange ), ] )
+# strongest upregulation
+tail( resSig_E2C[ order( resSig_E2C$log2FoldChange ), ] )
+```
+
+
+## E2-drought
+```{r E2-drought}
+dds_E2D <- DESeqDataSetFromMatrix(
+  countData = counts_E2D,
+  colData = samplelist_E2D,
+  design = ~ yield_potential)
+
+dds_E2D
+
+dds_E2D <- DESeq(dds_E2D, parallel = TRUE)
+
+vsd_E2D <- varianceStabilizingTransformation(dds_E2D)
+
+pca_res_E2D <- pca(t( assay(vsd_E2D) ), center = T, scale = "none", nPcs = 5, method = "rnipals")
+pca_res_E2D@R2
+pairs(pca_res_E2D@scores, col=dds_E2D$yield_potential, pch=19)
+
+res_E2D <- results(dds_E2D, parallel = TRUE, contrast = c("yield_potential","high yield","low yield"))
+
+# resSig_E2D <- res_E2D[ which(res_E2D$padj < 0.05 & abs(res_E2D$log2FoldChange)>1), ]
+resSig_E2D <- res_E2D[ which(res_E2D$padj < 0.1), ]
+dim(resSig_E2D) # 135
+
+# strongest downregulation
+head( resSig_E2D[ order( resSig_E2D$log2FoldChange ), ] )
+# strongest upregulation
+tail( resSig_E2D[ order( resSig_E2D$log2FoldChange ), ] )
+```
+
+
+## E3-control
+```{r E3-control}
+dds_E3C <- DESeqDataSetFromMatrix(
+  countData = counts_E3C,
+  colData = samplelist_E3C,
+  design = ~ yield_potential)
+
+dds_E3C
+
+dds_E3C <- DESeq(dds_E3C, parallel = TRUE)
+
+vsd_E3C <- varianceStabilizingTransformation(dds_E3C)
+
+pca_res_E3C <- pca(t( assay(vsd_E3C) ), center = T, scale = "none", nPcs = 5, method = "rnipals")
+pca_res_E3C@R2
+pairs(pca_res_E3C@scores, col=dds_E3C$yield_potential, pch=19)
+
+res_E3C <- results(dds_E3C, parallel = TRUE, contrast = c("yield_potential","high yield","low yield"))
+
+resSig_E3C <- res_E3C[ which(res_E3C$padj < 0.1), ]
+dim(resSig_E3C) # 6
+
+# strongest downregulation
+head( resSig_E3C[ order( resSig_E3C$log2FoldChange ), ] )
+# strongest upregulation
+tail( resSig_E3C[ order( resSig_E3C$log2FoldChange ), ] )
+```
+
+
+## E3-drought
+```{r E3-drought}
+dds_E3D <- DESeqDataSetFromMatrix(
+  countData = counts_E3D,
+  colData = samplelist_E3D,
+  design = ~ yield_potential)
+
+dds_E3D
+
+dds_E3D <- DESeq(dds_E3D, parallel = TRUE)
+
+vsd_E3D <- varianceStabilizingTransformation(dds_E3D)
+
+pca_res_E3D <- pca(t( assay(vsd_E3D) ), center = T, scale = "none", nPcs = 5, method = "rnipals")
+pca_res_E3D@R2
+pairs(pca_res_E3D@scores, col=dds_E3D$yield_potential, pch=19)
+
+res_E3D <- results(dds_E3D, parallel = TRUE, contrast = c("yield_potential","high yield","low yield"))
+
+# resSig_E3D <- res_E3D[ which(res_E3D$padj < 0.05 & abs(res_E3D$log2FoldChange)>1), ]
+resSig_E3D <- res_E3D[ which(res_E3D$padj < 0.1), ]
+dim(resSig_E3D) # 28
+
+# strongest downregulation
+head( resSig_E3D[ order( resSig_E3D$log2FoldChange ), ] )
+# strongest upregulation
+tail( resSig_E3D[ order( resSig_E3D$log2FoldChange ), ] )
+```
+
+
+# Overlap between experiments
+```{r Overlap between experiments}
+head(resSig_E1D)
+intersect(rownames(resSig_E1D), rownames(resSig_E2D))
+intersect(rownames(resSig_E1D), rownames(resSig_E3D))
+intersect(rownames(resSig_E2D), rownames(resSig_E3D))
+
+intersect(rownames(resSig_E2C), rownames(resSig_E2D)) # 6
+ 
+# E1: MPI big bag 2015 (ID: 72247)
+# E2: MPI field 2015 (ID: 72275)
+# E3: JKI field 2015 (ID: 72396)
+
+venn_drought <- func_venn_diagram_3(res1 = rownames(resSig_E1D),
+                    res2 = rownames(resSig_E2D),
+                    res3 = rownames(resSig_E3D),
+                    lab1 = "MPI big bag 2015",
+                    lab2 = "MPI field 2015",
+                    lab3 = "JKI field 2015")
+
+plot.new()
+flog.threshold(ERROR)
+grid.draw(venn_drought)
+
+boxplot(as.integer(counts_keep[16879,])~samplelist_ordered$yield_potential * samplelist_ordered$culture_name)
+```
+
+
+
+# save workspace
+```{r save workspace}
+save.image("valdis_deseq_analysis.RData")
+```
+
