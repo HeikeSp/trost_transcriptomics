@@ -1,0 +1,485 @@
+---
+title: "DGE Analysis by edgeR"
+author: "Heike Sprenger"
+date: "April 19, 2017"
+output:
+  html_document:
+    highlight: tango
+    number_section: yes
+    theme: cerulean
+    toc: yes
+    toc_float: true
+    toc_depth: 4
+---
+
+**Input: Expected counts that are filtered**
+
+# Set working directory
+```{r set working directory}
+#getwd()
+#setwd("X:/mpimp/repos/trost_transcriptomics")
+```
+
+[solution for issue with working directory and knitr](https://github.com/yihui/knitr/issues/277)
+
+# Load workspace, packages and scripts
+```{r load workspace, message=FALSE}
+# load packages
+#library(knitr)
+#library(pander)
+library(DESeq2)
+library(edgeR)
+library(gplots)
+library(vsn)
+library(RColorBrewer)
+# library(genefilter)
+library(pcaMethods)
+#library(MLSeq)
+#library(genefilter)
+#library(biomaRt)
+library(pheatmap)
+#library(kernlab)
+
+#source("https://bioconductor.org/biocLite.R")
+#biocLite("BiocParallel")
+library(BiocParallel)
+#register(MulticoreParam(4)) # not supported on Windows. Use SnowParam instead.
+detectCores()
+register(SnowParam(4))
+
+# # set options for pander
+# panderOptions('table.split.table', 200)
+# 
+# # set options for knitr
+# opts_chunk$set(fig.width=5, fig.height=5, cache=FALSE, highlight = TRUE, fig.show="asis")
+# opts_knit$set(root.dir = '../')
+
+# load("valdis_edger_analysis.RData")
+```
+
+# Source R functions
+```{r source R functions, include=FALSE}
+# source("../functions/colors.R")
+# source("../functions/func_pca_plots.R")
+# source("../functions/func_aggregate_values.R")
+# source("../functions/func_deseq2_pipeline.R")
+source("../functions/func_deseq2_pipeline_valdis.R")
+# source("../functions/func_cv.R")
+source("../functions/func_venn_diagram.R")
+source("../functions/func_edger.R")
+```
+
+# Load PGSC annotation file
+```{r load PGSC annotation}
+assoc_pgsc <- read.table("data/PGSC_DM_v3.4_g2t2c2p2func_edit.txt")
+colnames(assoc_pgsc) <- c("pgsc_dmg", "pgsc_dmt", "pgsc_dmc", "pgsc_dmp", "func")
+head(assoc_pgsc)
+```
+
+# Load count data and samplelist
+```{r load count data and samplelist}
+counts_keep <- read.table("output/valdis/counts_keep.txt", sep="\t", header=T)
+dim(counts_keep)
+
+keep <- rowSums(cpm(counts_keep) > 1) >= 3
+table(keep)
+# FALSE  TRUE 
+#  3246 21127
+
+counts_keep <- counts_keep[keep,]
+
+samplelist_ordered <- read.table("output/valdis/samplelist_modified.txt", sep="\t", header=T)
+#samplelist_ordered <- read.table("output/samplelist_ordered2.txt", sep="\t", header=T)
+head(samplelist_ordered)
+
+rownames(samplelist_ordered) <- samplelist_ordered$letter_code
+samplelist_ordered$batch <- as.factor(as.integer(samplelist_ordered$trial))
+```
+
+# DGE Analysis --> build DGElist: Trial as batch
+```{r build DGElist --> Trial as batch}
+y <- DGEList(counts = counts_keep, 
+             group = samplelist_ordered$yieldpot_treatment)
+
+y$samples
+head(y$counts)
+```
+
+## apply TMM normalisation (TMM is the default method)
+```{r apply TMM normalisation (TMM is the default method)}
+y <- calcNormFactors(y)
+y$samples
+```
+
+## MDS plot
+```{r MDS plot}
+plotMDS(y, cex = 0.5)
+plotMDS(y, cex = 0.5, labels = samplelist_ordered$yieldpot_treatment)
+```
+
+## test for batch/trial effect
+```{r test for batch/trial effect}
+design <- model.matrix(~ 0 + samplelist_ordered$yieldpot_treatment + samplelist_ordered$trial, data = y$samples)
+
+rownames(design) <- samplelist_ordered$yieldpot_treatment
+head(design)
+```
+
+## estimating the dispersions
+```{r estimating the dispersions}
+y <- estimateDisp(y, design, robust=TRUE)
+plotBCV(y)
+```
+
+## outliers with a prior.df value < 1
+```{r outliers with a prior.df value < 1}
+outliers <- y$counts[y$prior.df < 1,]
+dim(outliers)
+# 0
+```
+
+## fit QLglm
+```{r fit QLglm}
+fit.batch  <- glmQLFit(y, design, robust=TRUE)
+```
+
+## test batch effect
+```{r test batch effect}
+effect.batch <- glmQLFTest(fit.batch, coef = 7:8) # column 7 and 8 for batch/trial effect
+FDR <- p.adjust(effect.batch$table$PValue, method = "BH")
+sum(FDR < 0.05)
+# 17215 
+```
+
+
+# Separate data sets
+* E1: MPI big bag 2015 (ID: 72247)
+* E2: MPI field 2015 (ID: 72275)
+* E3: JKI field 2015 (ID: 72396)
+* C: Control / D: Drought stress
+
+## Separate data sets for control and drought stress
+```{r separate data sets for control and drought stress}
+# remove parents from samplelist
+samplelist_no_parents <- subset(samplelist_ordered, !(samplelist_ordered$lines_alias %in% c("Euroresa", "Albatros", "Ramses")))
+
+# subset for control
+samplelist_C <- droplevels(subset(samplelist_no_parents, samplelist_no_parents$treatment == "control"))
+counts_C <- counts_keep[, which(colnames(counts_keep) %in% samplelist_C$letter_code)]
+
+# subset for drought
+samplelist_D <- droplevels(subset(samplelist_no_parents, samplelist_no_parents$treatment == "drought_stress"))
+counts_D <- counts_keep[, which(colnames(counts_keep) %in% samplelist_D$letter_code)]
+```
+
+## separate data sets for experiments
+```{r separate data sets for experiments}
+# subset for E1
+samplelist_E1 <- droplevels(subset(samplelist_no_parents, samplelist_no_parents$culture_id == 72247))
+counts_E1 <- counts_keep[, which(colnames(counts_keep) %in% samplelist_E1$letter_code)]
+
+# subset for E2
+samplelist_E2 <- droplevels(subset(samplelist_no_parents, samplelist_no_parents$culture_id == 72275))
+counts_E2 <- counts_keep[, which(colnames(counts_keep) %in% samplelist_E2$letter_code)]
+
+# subset for E3
+samplelist_E3 <- droplevels(subset(samplelist_no_parents, samplelist_no_parents$culture_id == 72396))
+counts_E3 <- counts_keep[, which(colnames(counts_keep) %in% samplelist_E3$letter_code)]
+```
+
+
+## Separate data sets for control, drought stress and experiments
+```{r separate data sets for control, drought stress and experiments}
+# subset for E1 - control
+samplelist_E1C <- droplevels(subset(samplelist_no_parents, 
+                                    samplelist_no_parents$culture_id == 72247 & samplelist_no_parents$treatment == "control"))
+counts_E1C <- counts_keep[, which(colnames(counts_keep) %in% samplelist_E1C$letter_code)]
+
+# subset for E1 - drought
+samplelist_E1D <- droplevels(subset(samplelist_no_parents, 
+                                    samplelist_no_parents$culture_id == 72247 & samplelist_no_parents$treatment == "drought_stress"))
+counts_E1D <- counts_keep[, which(colnames(counts_keep) %in% samplelist_E1D$letter_code)]
+
+# subset for E2 - control
+samplelist_E2C <- droplevels(subset(samplelist_no_parents, 
+                                    samplelist_no_parents$culture_id == 72275 & samplelist_no_parents$treatment == "control"))
+counts_E2C <- counts_keep[, which(colnames(counts_keep) %in% samplelist_E2C$letter_code)]
+
+# subset for E2 - drought
+samplelist_E2D <- droplevels(subset(samplelist_no_parents, 
+                                    samplelist_no_parents$culture_id == 72275 & samplelist_no_parents$treatment == "drought_stress"))
+counts_E2D <- counts_keep[, which(colnames(counts_keep) %in% samplelist_E2D$letter_code)]
+
+# subset for E3 - control
+samplelist_E3C <- droplevels(subset(samplelist_no_parents, 
+                                    samplelist_no_parents$culture_id == 72396 & samplelist_no_parents$treatment == "control"))
+counts_E3C <- counts_keep[, which(colnames(counts_keep) %in% samplelist_E3C$letter_code)]
+
+# subset for E3 - drought
+samplelist_E3D <- droplevels(subset(samplelist_no_parents, 
+                                    samplelist_no_parents$culture_id == 72396 & samplelist_no_parents$treatment == "drought_stress"))
+counts_E3D <- counts_keep[, which(colnames(counts_keep) %in% samplelist_E3D$letter_code)]
+```
+
+
+# DGE analysis per trial: HY vs LY (including both treatments)
+## E1
+```{r DGE analysis per trial and treatment E1}
+yield_potential <- samplelist_E1$yield_potential
+group1 = yield_potential
+group2 = NULL
+
+res1_E1 <- func_edger_step1(counts_mat = counts_E1,
+                            info_mat = samplelist_E1,
+                            group_name = "yield_potential",
+                            group1 = yield_potential,
+                            group2 = NULL)
+
+contrasts_E1 = makeContrasts(
+  HYvsLY = group1high_yield - group1low_yield,
+  levels = res1_E1$design)
+
+res2_E1 <- func_edger_step2(dge_list = res1_E1$y, 
+                            design_mat = res1_E1$design,
+                            contrasts_mat = contrasts_E1)
+# no DGE!
+```
+
+
+## E2
+```{r DGE analysis per trial and treatment E2}
+yield_potential <- samplelist_E2$yield_potential
+group1 = yield_potential
+group2 = NULL
+
+res1_E2 <- func_edger_step1(counts_mat = counts_E2,
+                            info_mat = samplelist_E2,
+                            group_name = "yield_potential",
+                            group1 = yield_potential,
+                            group2 = NULL)
+
+contrasts_E2 = makeContrasts(
+  HYvsLY = group1high_yield - group1low_yield,
+  levels = res1_E2$design)
+
+res2_E2 <- func_edger_step2(dge_list = res1_E2$y, 
+                            design_mat = res1_E2$design,
+                            contrasts_mat = contrasts_E2)
+#    [,1] 
+# -1    26
+# 0  21096
+# 1      5
+# [1] 31
+```
+
+
+## E3
+```{r DGE analysis per trial and treatment E3}
+yield_potential <- samplelist_E3$yield_potential
+group1 = yield_potential
+group2 = NULL
+
+res1_E3 <- func_edger_step1(counts_mat = counts_E3,
+                            info_mat = samplelist_E3,
+                            group_name = "yield_potential",
+                            group1 = yield_potential,
+                            group2 = NULL)
+
+contrasts_E3 = makeContrasts(
+  HYvsLY = group1high_yield - group1low_yield,
+  levels = res1_E3$design)
+
+res2_E3 <- func_edger_step2(dge_list = res1_E3$y, 
+                            design_mat = res1_E3$design,
+                            contrasts_mat = contrasts_E3)
+#    [,1] 
+# -1     7
+# 0  21117
+# 1      3
+# [1] 10
+```
+
+# DGE analysis per trial and treatment: HY vs LY
+## E1C
+```{r DGE analysis per trial and treatment E1C}
+yield_potential <- samplelist_E1C$yield_potential
+group1 = yield_potential
+group2 = NULL
+
+res1_E1C <- func_edger_step1(counts_mat = counts_E1C,
+                         info_mat = samplelist_E1C,
+                         group_name = "yield_potential",
+                         group1 = yield_potential,
+                         group2 = NULL)
+
+contrasts_E1C = makeContrasts(
+  HYvsLY = group1high_yield - group1low_yield,
+  levels = res1_E1C$design)
+
+res2_E1C <- func_edger_step2(dge_list = res1_E1C$y, 
+                          design_mat = res1_E1C$design,
+                          contrasts_mat = contrasts_E1C)
+# no DGE!
+```
+
+
+
+## E1D
+```{r DGE analysis per trial and treatment E1D}
+yield_potential <- samplelist_E1D$yield_potential
+group1 = yield_potential
+group2 = NULL
+
+res1_E1D <- func_edger_step1(counts_mat = counts_E1D,
+                         info_mat = samplelist_E1D,
+                         group_name = "yield_potential",
+                         group1 = yield_potential,
+                         group2 = NULL)
+
+contrasts_E1D = makeContrasts(
+  HYvsLY = group1high_yield - group1low_yield,
+  levels = res1_E1D$design)
+
+res2_E1D <- func_edger_step2(dge_list = res1_E1D$y, 
+                          design_mat = res1_E1D$design,
+                          contrasts_mat = contrasts_E1D,
+                          FDR_threshold = 0.1)
+# no DGE!
+```
+
+## E2C
+```{r DGE analysis per trial and treatment E2C}
+yield_potential <- samplelist_E2C$yield_potential
+group1 = yield_potential
+group2 = NULL
+
+res1_E2C <- func_edger_step1(counts_mat = counts_E2C,
+                         info_mat = samplelist_E2C,
+                         group_name = "yield_potential",
+                         group1 = yield_potential,
+                         group2 = NULL)
+
+contrasts_E2C = makeContrasts(
+  HYvsLY = group1high_yield - group1low_yield,
+  levels = res1_E2C$design)
+
+res2_E2C <- func_edger_step2(dge_list = res1_E2C$y, 
+                          design_mat = res1_E2C$design,
+                          contrasts_mat = contrasts_E2C,
+                          FDR_threshold = 0.1)
+# no DGE!
+
+hist(res2_E2C$topTags$table$PValue)
+min(res2_E2C$topTags$table$FDR)
+#res2_E2C$fit
+
+res2_E2C$topTags$table["PGSC0003DMG400028911",]
+```
+
+
+## E2D
+```{r DGE analysis per trial and treatment E2D}
+yield_potential <- samplelist_E2D$yield_potential
+group1 = yield_potential
+group2 = NULL
+
+res1_E2D <- func_edger_step1(counts_mat = counts_E2D,
+                         info_mat = samplelist_E2D,
+                         group_name = "yield_potential",
+                         group1 = yield_potential,
+                         group2 = NULL)
+
+contrasts_E2D = makeContrasts(
+  HYvsLY = group1high_yield - group1low_yield,
+  levels = res1_E2D$design)
+
+res2_E2D <- func_edger_step2(dge_list = res1_E2D$y, 
+                          design_mat = res1_E2D$design,
+                          contrasts_mat = contrasts_E2D)
+# no DGE!
+```
+
+## E3C
+```{r DGE analysis per trial and treatment E3C}
+yield_potential <- samplelist_E3C$yield_potential
+group1 = yield_potential
+group2 = NULL
+
+res1_E3C <- func_edger_step1(counts_mat = counts_E3C,
+                         info_mat = samplelist_E3C,
+                         group_name = "yield_potential",
+                         group1 = yield_potential,
+                         group2 = NULL)
+
+contrasts_E3C = makeContrasts(
+  HYvsLY = group1high_yield - group1low_yield,
+  levels = res1_E3C$design)
+
+res2_E3C <- func_edger_step2(dge_list = res1_E3C$y, 
+                          design_mat = res1_E3C$design,
+                          contrasts_mat = contrasts_E3C)
+# no DGE!
+```
+
+
+## E3D
+```{r DGE analysis per trial and treatment E3D}
+yield_potential <- samplelist_E3D$yield_potential
+group1 = yield_potential
+group2 = NULL
+
+res1_E3D <- func_edger_step1(counts_mat = counts_E3D,
+                         info_mat = samplelist_E3D,
+                         group_name = "yield_potential",
+                         group1 = yield_potential,
+                         group2 = NULL)
+
+contrasts_E3D = makeContrasts(
+  HYvsLY = group1high_yield - group1low_yield,
+  levels = res1_E3D$design)
+
+res2_E3D <- func_edger_step2(dge_list = res1_E3D$y, 
+                          design_mat = res1_E3D$design,
+                          contrasts_mat = contrasts_E3D)
+# no DGE!
+```
+
+
+## DGE control vs drought E1
+```{r DGE analysis per trial E1}
+treatment <- samplelist_E1$treatment
+group1 = treatment
+group2 = NULL
+
+res1_E1 <- func_edger_step1(counts_mat = counts_E1,
+                         info_mat = samplelist_E1,
+                         group_name = "treatment",
+                         group1 = treatment,
+                         group2 = NULL)
+
+contrasts_E1 = makeContrasts(
+  drought_control = group1drought_stress - group1control,
+  levels = res1_E1$design)
+
+res2_E1 <- func_edger_step2(dge_list = res1_E1$y, 
+                          design_mat = res1_E1$design,
+                          contrasts_mat = contrasts_E1)
+```
+
+
+# MDS plots
+```{r MDS plots}
+plotMDS(res1_E1C$y, labels = res1_E1C$y$samples$group, main = "MPI big bag 2015 Control",
+        col = as.integer(res1_E1C$y$samples$group), cex=0.5)
+
+plotMDS(res1_E1D$y, labels = res1_E1D$y$samples$group, main = "MPI big bag 2015 Drought",
+        col = as.integer(res1_E1D$y$samples$group), cex=0.5)
+```
+
+
+
+# save workspace
+```{r save workspace}
+save.image("valdis_edger_analysis.RData")
+```
+
