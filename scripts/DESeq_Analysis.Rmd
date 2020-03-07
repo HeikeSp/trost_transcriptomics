@@ -18,6 +18,7 @@ output:
 ```{r set working directory}
 #getwd()
 #setwd("~/work/repos/trost_transcriptomics")
+#setwd("X:/mpimp/repos/trost_transcriptomics")
 ```
 
 [solution for issue with working directory and knitr](https://github.com/yihui/knitr/issues/277)
@@ -39,6 +40,8 @@ library(vsn)
 library(genefilter)
 library(biomaRt)
 #library(kernlab)
+library(heatmaply)
+library(pheatmap)
 
 # set options for pander
 panderOptions('table.split.table', 200)
@@ -74,6 +77,9 @@ samplelist_ordered <- read.table("output/samplelist_modified.txt", sep="\t", hea
 #samplelist_ordered <- read.table("output/samplelist_ordered2.txt", sep="\t", header=T)
 head(samplelist_ordered)
 
+samplelist_ordered$sample_name <- as.character(samplelist_ordered$sample_name)
+rownames(samplelist_ordered) <- samplelist_ordered$sample_name
+
 # relevel cultivar
 samplelist_ordered$cultivar <- factor(samplelist_ordered$cultivar, levels=c("Alegria", "Milva", "Desiree", "Saturna"))
 
@@ -96,7 +102,6 @@ ddsFullCountTable <- DESeqDataSetFromMatrix(
   design = ~ cultivar + condition)
 
 ddsFullCountTable
-
 
 # only greenhouse
 dds_greenhouse <- ddsFullCountTable[ , ddsFullCountTable$cultivation == "greenhouse"]
@@ -1065,6 +1070,67 @@ heatmap.2(rld_field_mapman_drought_stress,
 dev.off()
 ```
 
+
+# selected genes for qRT-PCR
+```{r selected genes for qRT-PCR}
+sel_genes <- c("PGSC0003DMG400006743","PGSC0003DMG400014310","PGSC0003DMG400011073","PGSC0003DMG400024160",
+               "PGSC0003DMG400002993","PGSC0003DMG400013605","PGSC0003DMG400024120","PGSC0003DMG400012619",
+               "PGSC0003DMG400017098","PGSC0003DMG400000066","PGSC0003DMG400018431","PGSC0003DMG400022343",
+               "PGSC0003DMG400010258","PGSC0003DMG400028600","PGSC0003DMG400000478","PGSC0003DMG400002663",
+               "PGSC0003DMG400018569","PGSC0003DMG400012988","PGSC0003DMG400012826","PGSC0003DMG401033888",
+               "PGSC0003DMG400005247","PGSC0003DMG400007816","PGSC0003DMG400010507","PGSC0003DMG400012305",
+               "PGSC0003DMG400019671","PGSC0003DMG401022350","PGSC0003DMG400012020","PGSC0003DMG400009706",
+               "PGSC0003DMG400011033","PGSC0003DMG401008889","PGSC0003DMG400029201","PGSC0003DMG400004038",
+               "PGSC0003DMG400013010","PGSC0003DMG402029631","PGSC0003DMG400007458","PGSC0003DMG400012017",
+               "PGSC0003DMG400014702","PGSC0003DMG400028358","PGSC0003DMG400010050","PGSC0003DMG400017157",
+               "PGSC0003DMG400003358","PGSC0003DMG400017203","PGSC0003DMG400007179","PGSC0003DMG400016996")
+
+sel_genes_up <- sel_genes[1:24]
+sel_genes_down <- sel_genes[25:44]
+
+quantile_breaks <- function(xs, n = 10) {
+  breaks <- quantile(xs, probs = seq(0, 1, length.out = n))
+  breaks[!duplicated(breaks)]
+}
+
+mat_breaks <- quantile_breaks(assay(rld_greenhouse)[ sel_genes, ], n = 11)
+col_heatmap = colorRampPalette(rev(brewer.pal(n = 9, name = "RdBu")))(length(mat_breaks))
+
+heatmap.2( assay(rld_greenhouse)[ sel_genes, ], scale = "row",
+           trace = "none", dendrogram = "column",
+           col = col_heatmap)
+
+# heatmap.2( assay(rld_greenhouse)[ sel_genes, ], scale = "row",
+#            trace = "none", dendrogram = "column",
+#            col = colorRampPalette( rev(brewer.pal(9, "RdBu")) )(255))
+
+heatmap.2( assay(rld_greenhouse)[ sel_genes_up, ], scale = "row",
+           trace = "none", dendrogram = "column", 
+           col = colorRampPalette( rev(brewer.pal(9, "RdBu")) )(255))
+           #col = col_heatmap)
+
+heatmap.2( assay(rld_greenhouse)[ sel_genes_down, ], scale = "row",
+           trace = "none", dendrogram = "column", 
+           #col = colorRampPalette( rev(brewer.pal(9, "RdBu")) )(255))
+           col = col_heatmap)
+
+# pheatmap(assay(rld_greenhouse)[sel_genes_up,], scale = "row", color = col_heatmap,
+#          annotation_col = data.frame(treatment = as.character(samplelist_ordered_g$condition)),
+#          annotation_colors = list(treatment = cols_treatment))
+
+heatmaply( assay(rld_greenhouse)[ sel_genes_up, ], scale = "row", col = col_heatmap)
+heatmaply( assay(rld_greenhouse)[ sel_genes_down, ], scale = "row", col = col_heatmap)
+
+heatmap.2( assay(rld_greenhouse)[ sel_genes_down, ], scale = "row",
+           trace = "none", dendrogram = "column",
+           col = colorRampPalette( rev(brewer.pal(9, "RdBu")) )(255))
+
+boxplot(assay(rld_greenhouse)["PGSC0003DMG400006743",] ~ samplelist_ordered_g$condition)
+boxplot(assay(rld_greenhouse)["PGSC0003DMG400006743",] ~ samplelist_ordered_g$condition * samplelist_ordered_g$cultivar)
+
+# PGSC0003DMG400007179
+boxplot(assay(rld_greenhouse)["PGSC0003DMG400007179",] ~ samplelist_ordered_g$condition * samplelist_ordered_g$cultivar)
+```
 
 
 # save workspace
