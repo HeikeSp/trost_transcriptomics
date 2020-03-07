@@ -10,6 +10,8 @@ output:
     toc: yes
     toc_float: true
     toc_depth: 4
+editor_options: 
+  chunk_output_type: console
 ---
 
 **Input: Expected counts that are filtered**
@@ -17,7 +19,8 @@ output:
 # Set working directory
 ```{r set working directory}
 #getwd()
-#setwd("D:/work/repos/trost_transcriptomics")
+#setwd("X:/mpimp/repos/trost_transcriptomics")
+#setwd("E:/uschi-home-sync/uschi/Seafile/uschi-work/repos/trost_transcriptomics")
 ```
 
 [solution for issue with working directory and knitr](https://github.com/yihui/knitr/issues/277)
@@ -38,13 +41,19 @@ library(pcaMethods)
 #library(biomaRt)
 library(pheatmap)
 #library(kernlab)
+library(reshape2)
+library(plyr)
+library(ggplot2)
+library(tidyverse)
+library(WGCNA)
+library(corrplot)
 
-#source("https://bioconductor.org/biocLite.R")
-#biocLite("BiocParallel")
+# source("https://bioconductor.org/biocLite.R")
+# biocLite("BiocParallel")
 library(BiocParallel)
-#register(MulticoreParam(4)) # not supported on Windows. Use SnowParam instead.
-detectCores()
-register(SnowParam(8))
+# register(MulticoreParam(4)) # not supported on Windows. Use SnowParam instead.
+# detectCores()
+register(SnowParam(4))
 
 # # set options for pander
 # panderOptions('table.split.table', 200)
@@ -53,7 +62,7 @@ register(SnowParam(8))
 # opts_chunk$set(fig.width=5, fig.height=5, cache=FALSE, highlight = TRUE, fig.show="asis")
 # opts_knit$set(root.dir = '../')
 
-# load("valdis_deseq_analysis.RData")
+load("valdis_deseq_analysis.RData")
 ```
 
 
@@ -88,24 +97,116 @@ rownames(samplelist_ordered) <- samplelist_ordered$letter_code
 samplelist_ordered$batch <- as.factor(as.integer(samplelist_ordered$trial))
 ```
 
-# DESeq Analysis
+
+# Separate data sets
+* E1: MPI big bag 2015 (ID: 72247)
+* E2: MPI field 2015 (ID: 72275)
+* E3: JKI field 2015 (ID: 72396)
+* C: Control / D: Drought stress
+
+## Remove parents from samplelist
+```{r remove parents from samplelist}
+samplelist_no_parents <- droplevels(subset(samplelist_ordered, !(samplelist_ordered$lines_alias %in% c("Euroresa", "Albatros", "Ramses"))))
+counts_no_parents <- counts_keep[, which(colnames(counts_keep) %in% samplelist_no_parents$letter_code)]
+colnames(counts_no_parents)
+
+# rename parental cultivars
+levels(samplelist_ordered$lines_alias) <- gsub("Albatros", "A", levels(samplelist_ordered$lines_alias))
+levels(samplelist_ordered$lines_alias) <- gsub("Ramses", "R", levels(samplelist_ordered$lines_alias))
+levels(samplelist_ordered$lines_alias) <- gsub("Euroresa", "E", levels(samplelist_ordered$lines_alias))
+```
+
+
+## Separate data sets for control and drought stress
+```{r separate data sets for control and drought stress}
+# subset for control
+samplelist_C <- droplevels(subset(samplelist_ordered, samplelist_ordered$treatment == "control")) # WITH parents
+# samplelist_C <- droplevels(subset(samplelist_no_parents, samplelist_no_parents$treatment == "control")) # WITHOUT parents
+counts_C <- counts_keep[, which(colnames(counts_keep) %in% samplelist_C$letter_code)]
+
+# subset for drought
+samplelist_D <- droplevels(subset(samplelist_ordered, samplelist_ordered$treatment == "drought stress")) # WITH parents
+# samplelist_D <- droplevels(subset(samplelist_no_parents, samplelist_no_parents$treatment == "drought stress")) # WITHOUT parents
+counts_D <- counts_keep[, which(colnames(counts_keep) %in% samplelist_D$letter_code)]
+```
+
+
+## Separate data sets for control, drought stress and experiments
+```{r separate data sets for control, drought stress and experiments}
+# subset for E1 - control
+samplelist_E1C <- droplevels(subset(samplelist_no_parents, samplelist_no_parents$culture_id == 72247 & samplelist_no_parents$treatment == "control"))
+counts_E1C <- counts_keep[, which(colnames(counts_keep) %in% samplelist_E1C$letter_code)]
+
+# subset for E1 - drought
+samplelist_E1D <- droplevels(subset(samplelist_no_parents, samplelist_no_parents$culture_id == 72247 & samplelist_no_parents$treatment == "drought stress"))
+counts_E1D <- counts_keep[, which(colnames(counts_keep) %in% samplelist_E1D$letter_code)]
+
+# subset for E2 - control
+samplelist_E2C <- droplevels(subset(samplelist_no_parents, samplelist_no_parents$culture_id == 72275 & samplelist_no_parents$treatment == "control"))
+counts_E2C <- counts_keep[, which(colnames(counts_keep) %in% samplelist_E2C$letter_code)]
+
+# subset for E2 - drought
+samplelist_E2D <- droplevels(subset(samplelist_no_parents, samplelist_no_parents$culture_id == 72275 & samplelist_no_parents$treatment == "drought stress"))
+counts_E2D <- counts_keep[, which(colnames(counts_keep) %in% samplelist_E2D$letter_code)]
+
+# subset for E3 - control
+samplelist_E3C <- droplevels(subset(samplelist_no_parents, samplelist_no_parents$culture_id == 72396 & samplelist_no_parents$treatment == "control"))
+counts_E3C <- counts_keep[, which(colnames(counts_keep) %in% samplelist_E3C$letter_code)]
+
+# subset for E3 - drought
+samplelist_E3D <- droplevels(subset(samplelist_no_parents, samplelist_no_parents$culture_id == 72396 & samplelist_no_parents$treatment == "drought stress"))
+counts_E3D <- counts_keep[, which(colnames(counts_keep) %in% samplelist_E3D$letter_code)]
+```
+
+
+## Separate data sets for control, drought stress and populations
+```{r separate data sets for control, drought stress and populations}
+# subset for EA - control
+samplelist_EAC <- droplevels(subset(samplelist_C, samplelist_C$population == "ExA"))
+counts_EAC <- counts_keep[, which(colnames(counts_keep) %in% samplelist_EAC$letter_code)]
+
+# subset for EA - drought
+samplelist_EAD <- droplevels(subset(samplelist_D, samplelist_D$population == "ExA"))
+counts_EAD <- counts_keep[, which(colnames(counts_keep) %in% samplelist_EAD$letter_code)]
+
+# subset for AR - control
+samplelist_ARC <- droplevels(subset(samplelist_C, samplelist_C$population == "AxR"))
+counts_ARC <- counts_keep[, which(colnames(counts_keep) %in% samplelist_ARC$letter_code)]
+
+# subset for AR - drought
+samplelist_ARD <- droplevels(subset(samplelist_D, samplelist_D$population == "AxR"))
+counts_ARD <- counts_keep[, which(colnames(counts_keep) %in% samplelist_ARD$letter_code)]
+```
+
+
+# DESeq Analysis: Treatment effect
 ## build DESeqDataSet
 ```{r build DESeqDataSet}
+# design WITHOUT BATCH effect
 ddsFullCountTable <- DESeqDataSetFromMatrix(
   countData = counts_keep,
   colData = samplelist_ordered,
   design = ~ lines_alias + treatment)
 
-
 ddsFullCountTable
 
-
+# design WITH BATCH effect
 ddsFullCountTable_trial <- DESeqDataSetFromMatrix(
   countData = counts_keep,
   colData = samplelist_ordered,
   design = ~ lines_alias + treatment + batch)
 
 ddsFullCountTable_trial
+
+# Interaction of treatment and yield potential
+dds_no_parents <- DESeqDataSetFromMatrix(
+  countData = counts_no_parents,
+  colData = samplelist_no_parents,
+  design = ~ yield_potential + treatment + yield_potential:treatment)
+  # design = ~ yieldpot_treatment) # as a combined single factor
+
+dds_no_parents
+table(samplelist_no_parents$yieldpot_treatment)
 ```
 
 
@@ -116,39 +217,58 @@ The function `DESeq` runs the following functions in order:
 + `dds <- nbinomWaldTest(dds)`
 ```{r run differential expression pipeline}
 # all samples
-Sys.time()
 dds <- DESeq(ddsFullCountTable, parallel = TRUE)
-Sys.time()
-
-Sys.time()
+# with trial/batch effect
 dds_trial <- DESeq(ddsFullCountTable_trial, parallel = TRUE)
-Sys.time()
+
+# with IA
+dds_IA <- DESeq(dds_no_parents, parallel = TRUE)
+resultsNames(dds_IA)
+# "Intercept"                                        
+# "yield_potential_low_yield_vs_high_yield"         
+# "treatment_drought_stress_vs_control"              
+# "yield_potentiallow_yield.treatmentdrought_stress"
 ```
 
 
 ## inspecting results table
 Results tables are generated using the function ``results``, which extracts a results table with log2 fold changes, p values and adjusted p values. With no arguments to results, the results will be for the last variable in the design formula, and if this is a factor, the comparison will be the last level of this variable over the first level.
 ```{r inspecting results table}
-Sys.time()
 res <- results(dds, parallel = TRUE,
-               contrast = c("treatment","drought stress","control"))
-Sys.time()
+               contrast = c("treatment", "drought stress", "control"))
 #res
+summary(res)
 
 # meaning of the columns:
 #mcols(res, use.names=TRUE)
 
 res_trial <- results(dds_trial, parallel = TRUE,
                      contrast = c("treatment","drought stress","control"))
+
+# with IA (see ?results example 3 for details)
+res_IA_treat <- results(dds_IA, name = "treatment_drought_stress_vs_control")
+res_IA_yieldpot <- results(dds_IA, name = "yield_potential_low_yield_vs_high_yield")
+res_IA_both <- results(dds_IA, name = "yield_potentiallow_yield.treatmentdrought_stress")
+
+summary(res_IA_treat)
+summary(res_IA_yieldpot)
+summary(res_IA_both)
+# out of 24373 with nonzero total read count
+# adjusted p-value < 0.1
+# LFC > 0 (up)       : 0, 0%
+# LFC < 0 (down)     : 19, 0.078%
 ```
 
 
 ### significant results
 ```{r significant results}
-resSig <- res[ which(res$padj < 0.05 & abs(res$log2FoldChange)>1), ]
-dim(resSig) # 3730
+pval_threshold <- 0.05
+lfc_threshold <- 1
 
-resSig_trial <- res_trial[ which(res_trial$padj < 0.05 & abs(res_trial$log2FoldChange)>1), ]
+resSig <- res[ which(res$padj < pval_threshold & abs(res$log2FoldChange) > lfc_threshold), ]
+dim(resSig) # 3995
+
+resSig_trial <- res_trial[ which(res_trial$padj < pval_threshold & abs(res_trial$log2FoldChange) > lfc_threshold), ]
 dim(resSig_trial) # 3792
 
 head(rownames(resSig))
@@ -156,8 +276,8 @@ head(rownames(resSig))
 
 # length(intersect(rownames(resSig),rownames(resSig_trial))) # 3509
 
-resSig_down <- res[ which(res$padj < 0.05 & res$log2FoldChange<(-1)), ]
-resSig_up <- res[ which(res$padj < 0.05 & res$log2FoldChange>1), ]
+resSig_down <- res[ which(res$padj < pval_threshold & res$log2FoldChange < (-lfc_threshold)), ]
+resSig_up <- res[ which(res$padj < pval_threshold & res$log2FoldChange > lfc_threshold), ]
 dim(resSig_down)
 dim(resSig_up)
 
@@ -165,6 +285,32 @@ dim(resSig_up)
 head( resSig[ order( resSig$log2FoldChange ), ] )
 # # strongest upregulation
 tail( resSig[ order( resSig$log2FoldChange ), ] )
+
+# with IA
+resSig_IA_both <- res_IA_both[ which(res_IA_both$padj < 0.1), ]
+rownames(resSig_IA_both)
+resSig_IA_both[7,]
+# PGSC0003DMG400021784
+# padj 6.84e-05
+# log2FC: -4.7398
+```
+
+
+## lfcShrink
+```{r lfcShrink}
+resLFC <- lfcShrink(dds, res = res, contrast = c("treatment", "drought stress", "control"))
+
+resLFC
+res
+res[order(res$log2FoldChange),]
+
+res["PGSC0003DMG401031204",] # high lfc
+resLFC["PGSC0003DMG401031204",] # lfc close to zero
+
+plot(res$log2FoldChange, resLFC$log2FoldChange)
+
+resLFCSig <- res[ which(resLFC$padj < pval_threshold & abs(resLFC$log2FoldChange) > lfc_threshold), ]
+dim(resLFCSig) # 3710
 ```
 
 
@@ -346,7 +492,7 @@ dev.off()
 ```
 
 
-# Heatmaps showing the expression data of the 20 most highly expressed genes
+## Heatmaps showing the expression data of the 20 most highly expressed genes
 ```{r first heatmap}
 select <- order(rowMeans(counts(dds,normalized=TRUE)),decreasing=TRUE)[1:20]
 
@@ -360,62 +506,85 @@ pheatmap(assay(vsd)[select,], cluster_rows=FALSE, show_rownames=FALSE, cluster_c
 ```
 
 
-# Separate data sets
-* E1: MPI big bag 2015 (ID: 72247)
-* E2: MPI field 2015 (ID: 72275)
-* E3: JKI field 2015 (ID: 72396)
-* C: Control / D: Drought stress
-
-## Separate data sets for control and drought stress
-```{r separate data sets for control and drought stress}
-# remove parents from samplelist
-samplelist_no_parents <- subset(samplelist_ordered, !(samplelist_ordered$lines_alias %in% c("Euroresa", "Albatros", "Ramses")))
-
-
-# subset for control
-samplelist_C <- droplevels(subset(samplelist_no_parents, samplelist_no_parents$treatment == "control"))
-counts_C <- counts_keep[, which(colnames(counts_keep) %in% samplelist_C$letter_code)]
-
-# subset for drought
-samplelist_D <- droplevels(subset(samplelist_no_parents, samplelist_no_parents$treatment == "drought stress"))
-counts_D <- counts_keep[, which(colnames(counts_keep) %in% samplelist_D$letter_code)]
-```
-
-
-## Separate data sets for control, drought stress and experiments
-```{r separate data sets for control, drought stress and experiments}
-# subset for E1 - control
-samplelist_E1C <- droplevels(subset(samplelist_no_parents, samplelist_no_parents$culture_id == 72247 & samplelist_no_parents$treatment == "control"))
-counts_E1C <- counts_keep[, which(colnames(counts_keep) %in% samplelist_E1C$letter_code)]
-
-# subset for E1 - drought
-samplelist_E1D <- droplevels(subset(samplelist_no_parents, samplelist_no_parents$culture_id == 72247 & samplelist_no_parents$treatment == "drought stress"))
-counts_E1D <- counts_keep[, which(colnames(counts_keep) %in% samplelist_E1D$letter_code)]
-
-# subset for E2 - control
-samplelist_E2C <- droplevels(subset(samplelist_no_parents, samplelist_no_parents$culture_id == 72275 & samplelist_no_parents$treatment == "control"))
-counts_E2C <- counts_keep[, which(colnames(counts_keep) %in% samplelist_E2C$letter_code)]
-
-# subset for E2 - drought
-samplelist_E2D <- droplevels(subset(samplelist_no_parents, samplelist_no_parents$culture_id == 72275 & samplelist_no_parents$treatment == "drought stress"))
-counts_E2D <- counts_keep[, which(colnames(counts_keep) %in% samplelist_E2D$letter_code)]
-
-# subset for E3 - control
-samplelist_E3C <- droplevels(subset(samplelist_no_parents, samplelist_no_parents$culture_id == 72396 & samplelist_no_parents$treatment == "control"))
-counts_E3C <- counts_keep[, which(colnames(counts_keep) %in% samplelist_E3C$letter_code)]
-
-# subset for E3 - drought
-samplelist_E3D <- droplevels(subset(samplelist_no_parents, samplelist_no_parents$culture_id == 72396 & samplelist_no_parents$treatment == "drought stress"))
-counts_E3D <- counts_keep[, which(colnames(counts_keep) %in% samplelist_E3D$letter_code)]
-```
-
-
+# DESeq Analysis: yield potential effect (per treatment)
 ## DESeq Analysis for control
 ```{r DESeq Analysis for control}
+dds_C <- DESeqDataSetFromMatrix(
+  countData = counts_C,
+  colData = samplelist_C,
+  design = ~ yield_potential)
 
+dds_C <- DESeq(dds_C, parallel = TRUE)
+dds_C
+
+vsd_C <- varianceStabilizingTransformation(dds_C)
+
+res_C <- results(dds_C, parallel = TRUE, contrast = c("yield_potential","high yield","low yield"))
+resSig_C <- res_C[ which(res_C$padj < 0.1), ]
+dim(resSig_C) # 749
+
+# strongest downregulation
+head( resSig_C[ order( resSig_C$log2FoldChange ), ] )
+# strongest upregulation
+tail( resSig_C[ order( resSig_C$log2FoldChange ), ] )
+
+res_C_LFC <- lfcShrink(dds_C, res = res_C, contrast = c("yield_potential","high yield","low yield"))
+summary(res_C_LFC)
+summary(res_C)
+
+resSig_C_down <- resSig_C[ which(resSig_C$log2FoldChange < (-lfc_threshold)), ]
+resSig_C_up <- resSig_C[ which(resSig_C$log2FoldChange > lfc_threshold), ]
+# resSig_C_down <- resSig_C[ which(resSig_C$log2FoldChange < 0), ]
+# resSig_C_up <- resSig_C[ which(resSig_C$log2FoldChange > 0), ]
+dim(resSig_C_down)
+dim(resSig_C_up)
 ```
 
 
+## DESeq Analysis for drought
+```{r DESeq Analysis for drought}
+dds_D <- DESeqDataSetFromMatrix(
+  countData = counts_D,
+  colData = samplelist_D,
+  design = ~ yield_potential)
+
+dds_D <- DESeq(dds_D, parallel = TRUE)
+
+vsd_D <- varianceStabilizingTransformation(dds_D)
+
+res_D <- results(dds_D, parallel = TRUE, contrast = c("yield_potential","high yield","low yield"))
+resSig_D <- res_D[ which(res_D$padj < 0.1), ]
+dim(resSig_D) # 447
+table(abs(resSig_D$log2FoldChange) > lfc_threshold)
+
+# strongest downregulation
+head( resSig_D[ order( resSig_D$log2FoldChange ), ] )
+# strongest upregulation
+tail( resSig_D[ order( resSig_D$log2FoldChange ), ] )
+
+res_D_LFC <- lfcShrink(dds_D, res = res_D, contrast = c("yield_potential","high yield","low yield"))
+summary(res_D_LFC)
+summary(res_D)
+
+resSig_D_down <- resSig_D[ which(resSig_D$log2FoldChange < (-lfc_threshold)), ]
+resSig_D_up <- resSig_C[ which(resSig_D$log2FoldChange > lfc_threshold), ]
+# resSig_D_down <- resSig_D[ which(resSig_D$log2FoldChange < 0), ]
+# resSig_D_up <- resSig_D[ which(resSig_D$log2FoldChange > 0), ]
+dim(resSig_D_down)
+dim(resSig_D_up)
+```
+
+## compare res_C and res_D
+```{r compare res_C and res_D}
+length(intersect(rownames(resSig_D), rownames(resSig_C)))
+# 99
+
+length(intersect(rownames(resSig_D_down), rownames(resSig_C_down)))
+length(intersect(rownames(resSig_D_up), rownames(resSig_C_up)))
+```
+
+
+# DESeq Analysis per treatment and trial
 ## E1-control
 ```{r E1-control}
 dds_E1C <- DESeqDataSetFromMatrix(
@@ -437,12 +606,17 @@ pairs(pca_res_E1C@scores, col=dds_E1C$yield_potential, pch=19)
 res_E1C <- results(dds_E1C, parallel = TRUE, contrast = c("yield_potential","high yield","low yield"))
 
 resSig_E1C <- res_E1C[ which(res_E1C$padj < 0.1), ]
-dim(resSig_E1C) # 0
+dim(resSig_E1C) # 1
 
 # strongest downregulation
 head( resSig_E1C[ order( resSig_E1C$log2FoldChange ), ] )
 # strongest upregulation
 tail( resSig_E1C[ order( resSig_E1C$log2FoldChange ), ] )
+
+resSig_E1C_down <- res_E1C[ which(res_E1C$padj < pval_threshold & res_E1C$log2FoldChange < 0), ]
+resSig_E1C_up <- res_E1C[ which(res_E1C$padj < pval_threshold & res_E1C$log2FoldChange > 0), ]
+dim(resSig_E1C_down) # 0
+dim(resSig_E1C_up)   # 1
 ```
 
 
@@ -467,12 +641,17 @@ res_E1D <- results(dds_E1D, parallel = TRUE, contrast = c("yield_potential","hig
 
 # resSig_E1D <- res_E1D[ which(res_E1D$padj < 0.05 & abs(res_E1D$log2FoldChange)>1), ]
 resSig_E1D <- res_E1D[ which(res_E1D$padj < 0.1), ]
-dim(resSig_E1D) # 143
+dim(resSig_E1D) # 164
 
 # strongest downregulation
 head( resSig_E1D[ order( resSig_E1D$log2FoldChange ), ] )
 # strongest upregulation
 tail( resSig_E1D[ order( resSig_E1D$log2FoldChange ), ] )
+
+resSig_E1D_down <- res_E1D[ which(res_E1D$padj < pval_threshold & res_E1D$log2FoldChange < 0), ]
+resSig_E1D_up <- res_E1D[ which(res_E1D$padj < pval_threshold & res_E1D$log2FoldChange > 0), ]
+dim(resSig_E1D_down)
+dim(resSig_E1D_up)
 ```
 
 
@@ -496,12 +675,19 @@ pairs(pca_res_E2C@scores, col=dds_E2C$yield_potential, pch=19)
 res_E2C <- results(dds_E2C, parallel = TRUE, contrast = c("yield_potential","high yield","low yield"))
 
 resSig_E2C <- res_E2C[ which(res_E2C$padj < 0.1), ]
-dim(resSig_E2C) # 563
+dim(resSig_E2C) # 794
 
 # strongest downregulation
 head( resSig_E2C[ order( resSig_E2C$log2FoldChange ), ] )
 # strongest upregulation
 tail( resSig_E2C[ order( resSig_E2C$log2FoldChange ), ] )
+
+resSig_E2C_down <- res_E2C[ which(res_E2C$padj < pval_threshold & res_E2C$log2FoldChange < 0), ]
+#resSig_E2C_down <- res_E2C[ which(res_E2C$padj < pval_threshold & res_E2C$log2FoldChange < (-1)), ]
+resSig_E2C_up <- res_E2C[ which(res_E2C$padj < pval_threshold & res_E2C$log2FoldChange > 0), ]
+#resSig_E2C_up <- res_E2C[ which(res_E2C$padj < pval_threshold & res_E2C$log2FoldChange > 1), ]
+dim(resSig_E2C_down)
+dim(resSig_E2C_up)
 ```
 
 
@@ -523,15 +709,30 @@ pca_res_E2D@R2
 pairs(pca_res_E2D@scores, col=dds_E2D$yield_potential, pch=19)
 
 res_E2D <- results(dds_E2D, parallel = TRUE, contrast = c("yield_potential","high yield","low yield"))
+summary(res_E2D)
+res_E2D_LFC <- lfcShrink(dds_E2D, res = res_E2D, contrast = c("yield_potential","high yield","low yield"))
+summary(res_E2D_LFC)
+
+# check effect of independentFiltering
+# resNoFilt <- results(dds_E2D_, parallel = TRUE, contrast = c("yield_potential","high yield","low yield"), 
+#                      independentFiltering = FALSE)
+# 
+# addmargins(table(filtering=(res_E2D$padj < .1),
+#                  noFiltering=(resNoFilt$padj < .1)))
 
 # resSig_E2D <- res_E2D[ which(res_E2D$padj < 0.05 & abs(res_E2D$log2FoldChange)>1), ]
 resSig_E2D <- res_E2D[ which(res_E2D$padj < 0.1), ]
-dim(resSig_E2D) # 135
+dim(resSig_E2D) # 141
 
 # strongest downregulation
 head( resSig_E2D[ order( resSig_E2D$log2FoldChange ), ] )
 # strongest upregulation
 tail( resSig_E2D[ order( resSig_E2D$log2FoldChange ), ] )
+
+resSig_E2D_down <- res_E2D[ which(res_E2D$padj < pval_threshold & res_E2D$log2FoldChange < 0), ]
+resSig_E2D_up <- res_E2D[ which(res_E2D$padj < pval_threshold & res_E2D$log2FoldChange > 0), ]
+dim(resSig_E2D_down)
+dim(resSig_E2D_up)
 ```
 
 
@@ -561,6 +762,11 @@ dim(resSig_E3C) # 6
 head( resSig_E3C[ order( resSig_E3C$log2FoldChange ), ] )
 # strongest upregulation
 tail( resSig_E3C[ order( resSig_E3C$log2FoldChange ), ] )
+
+resSig_E3C_down <- res_E3D[ which(res_E3C$padj < pval_threshold & res_E3C$log2FoldChange < 0), ]
+resSig_E3C_up <- res_E3D[ which(res_E3C$padj < pval_threshold & res_E3C$log2FoldChange > 0), ]
+dim(resSig_E3C_down)
+dim(resSig_E3C_up)
 ```
 
 
@@ -585,23 +791,34 @@ res_E3D <- results(dds_E3D, parallel = TRUE, contrast = c("yield_potential","hig
 
 # resSig_E3D <- res_E3D[ which(res_E3D$padj < 0.05 & abs(res_E3D$log2FoldChange)>1), ]
 resSig_E3D <- res_E3D[ which(res_E3D$padj < 0.1), ]
-dim(resSig_E3D) # 28
+dim(resSig_E3D) # 35
 
 # strongest downregulation
 head( resSig_E3D[ order( resSig_E3D$log2FoldChange ), ] )
 # strongest upregulation
 tail( resSig_E3D[ order( resSig_E3D$log2FoldChange ), ] )
+
+# resSig_E3D_down <- res[ which(resSig_E3D$padj < pval_threshold & resSig_E3D$log2FoldChange < (-lfc_threshold)), ]
+# resSig_E3D_up <- res[ which(resSig_E3D$padj < pval_threshold & resSig_E3D$log2FoldChange > lfc_threshold), ]
+pval_threshold <- 0.1
+resSig_E3D_down <- res_E3D[ which(res_E3D$padj < pval_threshold & res_E3D$log2FoldChange < 0), ]
+resSig_E3D_up <- res_E3D[ which(res_E3D$padj < pval_threshold & res_E3D$log2FoldChange > 0), ]
+dim(resSig_E3D_down)
+dim(resSig_E3D_up)
 ```
 
 
-# Overlap between experiments
+## Overlap between experiments
 ```{r Overlap between experiments}
 head(resSig_E1D)
 intersect(rownames(resSig_E1D), rownames(resSig_E2D))
 intersect(rownames(resSig_E1D), rownames(resSig_E3D))
 intersect(rownames(resSig_E2D), rownames(resSig_E3D))
 
-intersect(rownames(resSig_E2C), rownames(resSig_E2D)) # 6
+intersect(rownames(resSig_E1C), rownames(resSig_E1D)) # 1
+intersect(rownames(resSig_E2C), rownames(resSig_E2D)) # 10
+intersect(rownames(resSig_E3C), rownames(resSig_E3D)) # 2
+
  
 # E1: MPI big bag 2015 (ID: 72247)
 # E2: MPI field 2015 (ID: 72275)
@@ -610,21 +827,661 @@ intersect(rownames(resSig_E2C), rownames(resSig_E2D)) # 6
 venn_drought <- func_venn_diagram_3(res1 = rownames(resSig_E1D),
                     res2 = rownames(resSig_E2D),
                     res3 = rownames(resSig_E3D),
-                    lab1 = "MPI big bag 2015",
-                    lab2 = "MPI field 2015",
-                    lab3 = "JKI field 2015")
+                    lab1 = "MPIMP FGH 2015",
+                    lab2 = "MPIMP Feld 2015",
+                    lab3 = "JKI Feld 2015",
+                    filepath = "figures/valdis/venn_drought_all.png")
 
 plot.new()
 flog.threshold(ERROR)
 grid.draw(venn_drought)
-
-boxplot(as.integer(counts_keep[16879,])~samplelist_ordered$yield_potential * samplelist_ordered$culture_name)
 ```
 
+## venn drought up
+```{r venn drought up}
+venn_drought_up <- func_venn_diagram_3(res1 = rownames(resSig_E1D_up),
+                    res2 = rownames(resSig_E2D_up),
+                    res3 = rownames(resSig_E3D_up),
+                    lab1 = "MPIMP FGH 2015",
+                    lab2 = "MPIMP Feld 2015",
+                    lab3 = "JKI Feld 2015", 
+                    filepath = "figures/valdis/venn_drought_up.png")
+
+# plot.new()
+# flog.threshold(ERROR)
+# grid.draw(venn_drought_up)
+
+intersect(rownames(resSig_E2D_up), rownames(resSig_E3D_up))
+intersect(rownames(resSig_E1D_up), rownames(resSig_E2D_up))
+intersect(rownames(resSig_E1D_up), rownames(resSig_E3D_up))
+```
+
+
+## venn drought down
+```{r venn drought down}
+venn_drought_down <- func_venn_diagram_3(res1 = rownames(resSig_E1D_down),
+                    res2 = rownames(resSig_E2D_down),
+                    res3 = rownames(resSig_E3D_down),
+                    lab1 = "MPIMP FGH 2015",
+                    lab2 = "MPIMP Feld 2015",
+                    lab3 = "JKI Feld 2015",
+                    filepath = "figures/valdis/venn_drought_down.png")
+
+plot.new()
+flog.threshold(ERROR)
+grid.draw(venn_drought_down)
+
+intersect(rownames(resSig_E2D_down), rownames(resSig_E3D_down))
+intersect(rownames(resSig_E2D_down), rownames(resSig_E1D_down))
+```
+
+## heatmap down-regulated genes
+```{r heatmap down-regulated genes}
+resSig_down_concat <- c(rownames(resSig_E1D_down), rownames(resSig_E2D_down), 
+                        rownames(resSig_E3D_down), rownames(resSig_E2C_down))
+resSig_down_set <- names(which(table(resSig_down_concat)>1))
+
+vsd_D_down_t <- t(assay(vsd_D)[resSig_down_set,])
+heatmap.2(vsd_D_down_t, scale = "row", trace = "none", 
+          ColSideColors = colors[as.integer(samplelist_D$yield_potential)])
+
+dim(vsd_D_down_t)
+vsd_D_down_t_merge <- merge(samplelist_D, vsd_D_down_t, by = "row.names")
+
+vsd_D_down_t_merge_mean <- ddply(vsd_D_down_t_merge, c("line_alias", "treatment"), summarise,
+                           PGSC0003DMG400000776 = mean(PGSC0003DMG400000776),
+                           PGSC0003DMG400004378 = mean(PGSC0003DMG400004378),
+                           PGSC0003DMG400005950 = mean(PGSC0003DMG400005950),
+PGSC0003DMG400006276 = mean(PGSC0003DMG400006276),
+PGSC0003DMG400006709 = mean(PGSC0003DMG400006709),
+PGSC0003DMG400009511 = mean(PGSC0003DMG400009511),
+PGSC0003DMG400012987 = mean(PGSC0003DMG400012987),
+PGSC0003DMG400015808 = mean(PGSC0003DMG400015808),
+PGSC0003DMG400017713 = mean(PGSC0003DMG400017713),
+PGSC0003DMG400019435 = mean(PGSC0003DMG400019435),
+PGSC0003DMG400024967 = mean(PGSC0003DMG400024967),
+PGSC0003DMG400025605 = mean(PGSC0003DMG400025605),
+PGSC0003DMG400026854 = mean(PGSC0003DMG400026854),
+PGSC0003DMG400027904 = mean(PGSC0003DMG400027904),
+PGSC0003DMG400029174 = mean(PGSC0003DMG400029174),
+PGSC0003DMG400030731 = mean(PGSC0003DMG400030731),
+PGSC0003DMG400031446 = mean(PGSC0003DMG400031446),
+PGSC0003DMG400031833 = mean(PGSC0003DMG400031833),
+PGSC0003DMG400032147 = mean(PGSC0003DMG400032147),
+PGSC0003DMG402000506 = mean(PGSC0003DMG402000506),
+PGSC0003DMG402025083 = mean(PGSC0003DMG402025083))
+
+heatmap.2(as.matrix(vsd_D_down_t_merge_mean[,3:23]), scale = "column", trace = "none")
+
+
+pca_res_vsd_D_down <- pca(vsd_D_down_t, center = T, scale = "none", nPcs = 3, method = "rnipals")
+pca_res_vsd_D_down@R2
+pairs(pca_res_vsd_D_down@scores, col=samplelist_D$yield_potential, pch=19)
+
+plot(pca_res_vsd_D_down@scores[,1], pca_res_vsd_D_down@scores[,2], 
+     col=samplelist_D$yield_potential, pch=c(17,18,19)[as.integer(samplelist_D$culture_name)])
+
+# samplelist_D2 <- merge(samplelist_D, data.frame(sy_control_median_part), by.x = "lines_alias", by.y = "row.names", sort=F)
+# rownames(samplelist_D2) <- samplelist_D2$letter_code
+# samplelist_D2 <- samplelist_D2[rownames(vsd_D_down_t),]
+
+png("figures/valdis/pca_yield_penalty_marker_PC2_3.png", width = 1500, height = 1500, res =300)
+palette(colors)
+plot(pca_res_vsd_D_down@scores[,2], pca_res_vsd_D_down@scores[,3], 
+     col=samplelist_D$yield_potential, pch=19, xlab = "PC2", ylab = "PC3", cex=1.4)
+legend("bottomleft", fill=1:3, c("HY", "LY", "Eltern"))
+dev.off()
+
+png("figures/valdis/pca_yield_penalty_marker_PC1_2.png", width = 1500, height = 1500, res =300)
+palette(colors)
+plot(pca_res_vsd_D_down@scores[,1], pca_res_vsd_D_down@scores[,2], 
+     col=samplelist_D$yield_potential, pch=19, xlab = "PC1", ylab = "PC2", cex=1.4)
+legend("bottomleft", fill=1:3, c("HY", "LY", "Eltern"))
+dev.off()
+
+```
+
+
+## venn control
+```{r venn control}
+venn_control <- func_venn_diagram_3(res1 = rownames(resSig_E1C),
+                    res2 = rownames(resSig_E2C),
+                    res3 = rownames(resSig_E3C),
+                    lab1 = "MPIMP FGH 2015",
+                    lab2 = "MPIMP Feld 2015",
+                    lab3 = "JKI Feld 2015")
+
+plot.new()
+flog.threshold(ERROR)
+grid.draw(venn_control)
+```
+
+
+# DESeq Analysis per treatment and population
+## ExA-control
+```{r ExA-control}
+dds_EAC <- DESeqDataSetFromMatrix(
+  countData = counts_EAC,
+  colData = samplelist_EAC,
+  design = ~ yield_potential)
+
+dds_EAC
+dds_EAC <- DESeq(dds_EAC, parallel = TRUE)
+
+vsd_EAC <- varianceStabilizingTransformation(dds_EAC)
+
+pca_res_EAC <- pca(t( assay(vsd_EAC) ), center = T, scale = "none", nPcs = 5, method = "rnipals")
+pca_res_EAC@R2
+pairs(pca_res_EAC@scores, col=dds_EAC$yield_potential, pch=19)
+
+res_EAC <- results(dds_EAC, parallel = TRUE, contrast = c("yield_potential","high yield","low yield"))
+resSig_EAC <- res_EAC[ which(res_EAC$padj < 0.1), ]
+dim(resSig_EAC) # 772
+summary(resSig_EAC)
+
+# strongest downregulation
+head( resSig_EAC[ order( resSig_EAC$log2FoldChange ), ] )
+# strongest upregulation
+tail( resSig_EAC[ order( resSig_EAC$log2FoldChange ), ] )
+
+resSig_EAC_down <- resSig_EAC[ which(resSig_EAC$log2FoldChange < (-1)), ]
+resSig_EAC_up <- resSig_EAC[ which(resSig_EAC$log2FoldChange > 1), ]
+dim(resSig_EAC_down)
+dim(resSig_EAC_up)
+```
+
+
+## ExA-drought
+```{r ExA-drought}
+dds_EAD <- DESeqDataSetFromMatrix(
+  countData = counts_EAD,
+  colData = samplelist_EAD,
+  design = ~ yield_potential)
+
+dds_EAD
+dds_EAD <- DESeq(dds_EAD, parallel = TRUE)
+
+vsd_EAD <- varianceStabilizingTransformation(dds_EAD)
+
+pca_res_EAD <- pca(t( assay(vsd_EAD) ), center = T, scale = "none", nPcs = 5, method = "rnipals")
+pca_res_EAD@R2
+pairs(pca_res_EAD@scores, col=dds_EAD$yield_potential, pch=19)
+
+res_EAD <- results(dds_EAD, parallel = TRUE, contrast = c("yield_potential","high yield","low yield"))
+resSig_EAD <- res_EAD[ which(res_EAD$padj < 0.1), ]
+dim(resSig_EAD) # 54
+summary(resSig_EAD)
+
+# strongest downregulation
+head( resSig_EAD[ order( resSig_EAD$log2FoldChange ), ] )
+# strongest upregulation
+tail( resSig_EAD[ order( resSig_EAD$log2FoldChange ), ] )
+
+resSig_EAD_down <- resSig_EAD[ which(resSig_EAD$log2FoldChange < (-1)), ]
+resSig_EAD_up <- resSig_EAD[ which(resSig_EAD$log2FoldChange > 1), ]
+dim(resSig_EAD_down)
+dim(resSig_EAD_up)
+```
+
+
+## AxR-control
+```{r AxR-control}
+dds_ARC <- DESeqDataSetFromMatrix(
+  countData = counts_ARC,
+  colData = samplelist_ARC,
+  design = ~ yield_potential)
+
+dds_ARC
+dds_ARC <- DESeq(dds_ARC, parallel = TRUE)
+
+vsd_ARC <- varianceStabilizingTransformation(dds_ARC)
+
+pca_res_ARC <- pca(t( assay(vsd_ARC) ), center = T, scale = "none", nPcs = 5, method = "rnipals")
+pca_res_ARC@R2
+pairs(pca_res_ARC@scores, col=dds_ARC$yield_potential, pch=19)
+
+res_ARC <- results(dds_ARC, parallel = TRUE, contrast = c("yield_potential","high yield","low yield"))
+resSig_ARC <- res_ARC[ which(res_ARC$padj < 0.1), ]
+dim(resSig_ARC) # 448
+summary(resSig_ARC)
+
+# strongest downregulation
+head( resSig_ARC[ order( resSig_ARC$log2FoldChange ), ] )
+# strongest upregulation
+tail( resSig_ARC[ order( resSig_ARC$log2FoldChange ), ] )
+
+resSig_ARC_down <- resSig_ARC[ which(resSig_ARC$log2FoldChange < (-1)), ]
+resSig_ARC_up <- resSig_ARC[ which(resSig_ARC$log2FoldChange > 1), ]
+dim(resSig_ARC_down)
+dim(resSig_ARC_up)
+```
+
+
+## AxR-drought
+```{r AxR-drought}
+dds_ARD <- DESeqDataSetFromMatrix(
+  countData = counts_ARD,
+  colData = samplelist_ARD,
+  design = ~ yield_potential)
+
+dds_ARD
+dds_ARD <- DESeq(dds_ARD, parallel = TRUE)
+
+vsd_ARD <- varianceStabilizingTransformation(dds_ARD)
+
+pca_res_ARD <- pca(t( assay(vsd_ARD) ), center = T, scale = "none", nPcs = 5, method = "rnipals")
+pca_res_ARD@R2
+pairs(pca_res_ARD@scores, col=dds_ARD$yield_potential, pch=19)
+
+res_ARD <- results(dds_ARD, parallel = TRUE, contrast = c("yield_potential","high yield","low yield"))
+resSig_ARD <- res_ARD[ which(res_ARD$padj < 0.1), ]
+dim(resSig_ARD) # 1458
+summary(resSig_ARD)
+
+# strongest downregulation
+head( resSig_ARD[ order( resSig_ARD$log2FoldChange ), ] )
+# strongest upregulation
+tail( resSig_ARD[ order( resSig_ARD$log2FoldChange ), ] )
+
+resSig_ARD_down <- resSig_ARD[ which(resSig_ARD$log2FoldChange < (-1)), ]
+resSig_ARD_up <- resSig_ARD[ which(resSig_ARD$log2FoldChange > 1), ]
+dim(resSig_ARD_down)
+dim(resSig_ARD_up)
+```
+
+## Overlap between populations
+```{r Overlap between populations}
+intersect(rownames(resSig_EAD), rownames(resSig_EAC))
+intersect(rownames(resSig_EAD), rownames(resSig_ARD))
+
+venn_drought <- func_venn_diagram_4(res1 = rownames(resSig_EAC),
+                    res2 = rownames(resSig_EAD),
+                    res3 = rownames(resSig_ARC),
+                    res4 = rownames(resSig_ARD),
+                    lab1 = "ExA control",
+                    lab2 = "ExA stress",
+                    lab3 = "AxR control",
+                    lab4 = "AxR stress")
+
+plot.new()
+flog.threshold(ERROR)
+grid.draw(venn_drought)
+```
+
+# Plots
+## plot expression of selected genes
+```{r plot expression of selected genes}
+par(mar=c(6,12,4,2))
+# PGSC0003DMG400012100
+boxplot(as.integer(counts_keep[16879,]) ~ samplelist_ordered$yield_potential * samplelist_ordered$culture_name, horizontal = T, las = 2)
+
+colors <- brewer.pal(3, "Set1")
+# all samples
+boxplot(assay(vsd)[16879,] ~ samplelist_ordered$yield_potential * samplelist_ordered$culture_name, 
+        horizontal = T, las = 2, col = colors)
+
+boxplot(assay(vsd)[16879,] ~ samplelist_ordered$yield_potential * samplelist_ordered$treatment, 
+        horizontal = T, las = 2, col = colors)
+
+boxplot(assay(vsd)[16879,] ~ samplelist_ordered$lines_alias, las = 2, 
+        col = colors[c(1,2,2,2,3,3,3,3,2,3,3,2,3,2,2,3,2,1,1)])
+
+boxplot(assay(vsd)["PGSC0003DMG400003601",] ~ samplelist_ordered$lines_alias, las = 2, 
+        col = colors[c(1,2,2,2,3,3,3,3,2,3,3,2,3,2,2,3,2,1,1)])
+
+# only control
+boxplot(assay(vsd_C)["PGSC0003DMG400022092",] ~ samplelist_C$yield_potential * samplelist_C$culture_name, 
+        horizontal = T, las = 2, col = colors)
+
+boxplot(assay(vsd_C)["PGSC0003DMG400022092",] ~ samplelist_C$lines_alias, las = 2, 
+        col = colors[c(1,2,2,2,3,3,3,3,2,3,3,2,3,2,2,3,2,1,1)])
+
+# only drought
+boxplot(assay(vsd_D)[16879,] ~ samplelist_D$yield_potential * samplelist_D$culture_name, 
+        horizontal = T, las = 2, col = colors)
+
+boxplot(assay(vsd_D)[16879,] ~ samplelist_D$lines_alias, las = 2, 
+        col = colors[c(1,2,2,2,3,3,3,3,2,3,3,2,3,2,2,3,2,1,1)])
+
+# down (under drought conditions)
+boxplot(assay(vsd_D)["PGSC0003DMG400000776",] ~ samplelist_D$yield_potential, las = 2, 
+        col = colors)
+
+# up (under drought conditions)
+boxplot(assay(vsd_D)["PGSC0003DMG400025501",] ~ samplelist_D$yield_potential, las = 2, 
+        col = colors)
+
+# PGSC0003DMG400003601
+boxplot(assay(vsd)["PGSC0003DMG400003601",] ~ samplelist_ordered$yield_potential * samplelist_ordered$culture_name, 
+        horizontal = T, las = 2, col = colors)
+
+par(mar=c(5,4,4,2))
+```
+
+## plot for report
+```{r plot for report}
+png("figures/valdis/boxplot_PGSC0003DMG400017234.png", width = 2000, height = 1500, res =300)
+par(mar=c(7,4,4,2))
+boxplot(assay(vsd)["PGSC0003DMG400017234",] ~ samplelist_ordered$yield_potential * samplelist_ordered$treatment, 
+        las = 2, main = "PGSC0003DMG400017234 (Auxin-induced protein 5NG4)", ylab = "normalisierte Genexpression",
+        col = colors, names = c("HY \n Kontrolle", "LY \n Kontrolle", "Eltern \n Kontrolle",
+                                "HY \n Trockenstress", "LY \n Trockenstress", "Eltern \n Trockenstress"))
+legend("bottomright", fill=colors, legend=c("HY", "LY", "Eltern"), cex=1)
+dev.off()
+
+
+png("figures/valdis/boxplot_PGSC0003DMG400032147.png", width = 2000, height = 1500, res =300)
+par(mar=c(7,4,4,2))
+boxplot(assay(vsd)["PGSC0003DMG400032147",] ~ samplelist_ordered$yield_potential * samplelist_ordered$treatment, 
+        las = 2, main = "PGSC0003DMG400032147 (Peroxidase)", ylab = "normalisierte Genexpression",
+        col = colors, names = c("HY \n Kontrolle", "LY \n Kontrolle", "Eltern \n Kontrolle",
+                                "HY \n Trockenstress", "LY \n Trockenstress", "Eltern \n Trockenstress"))
+legend("bottomleft", fill=colors, legend=c("HY", "LY", "Eltern"), cex=1)
+dev.off()
+
+png("figures/valdis/boxplot_PGSC0003DMG400003042.png", width = 2000, height = 1500, res =300)
+par(mar=c(7,4,4,2))
+boxplot(assay(vsd)["PGSC0003DMG400003042",] ~ samplelist_ordered$yield_potential * samplelist_ordered$treatment, 
+        las = 2, main = "PGSC0003DMG400003042 (Osmotin)", ylab = "normalisierte Genexpression",
+        col = colors, names = c("HY \n Kontrolle", "LY \n Kontrolle", "Eltern \n Kontrolle",
+                                "HY \n Trockenstress", "LY \n Trockenstress", "Eltern \n Trockenstress"))
+legend("bottomright", fill=colors, legend=c("HY", "LY", "Eltern"), cex=1)
+dev.off()
+
+# PGSC0003DMG400012100
+png("figures/valdis/boxplot_PGSC0003DMG400012100.png", width = 2000, height = 1500, res =300)
+par(mar=c(7,4,4,2))
+boxplot(assay(vsd)["PGSC0003DMG400012100",] ~ samplelist_ordered$yield_potential * samplelist_ordered$treatment, 
+        las = 2, main = "PGSC0003DMG400012100 (Major latex)", ylab = "normalisierte Genexpression",
+        col = colors, names = c("HY \n Kontrolle", "LY \n Kontrolle", "Eltern \n Kontrolle",
+                                "HY \n Trockenstress", "LY \n Trockenstress", "Eltern \n Trockenstress"))
+legend("bottomright", fill=colors, legend=c("HY", "LY", "Eltern"), cex=1)
+dev.off()
+
+# PGSC0003DMG401011206 (Vacuolar ATP synthase subunit h)
+png("figures/valdis/boxplot_PGSC0003DMG401011206.png", width = 2000, height = 1500, res =300)
+par(mar=c(7,4,4,2))
+boxplot(assay(vsd)["PGSC0003DMG401011206",] ~ samplelist_ordered$yield_potential * samplelist_ordered$treatment, 
+        las = 2, main = "PGSC0003DMG401011206 (Vacuolar ATP synthase subunit h)", ylab = "normalisierte Genexpression",
+        col = colors, names = c("HY \n Kontrolle", "LY \n Kontrolle", "Eltern \n Kontrolle",
+                                "HY \n Trockenstress", "LY \n Trockenstress", "Eltern \n Trockenstress"))
+legend("topright", fill=colors, legend=c("HY", "LY", "Eltern"), cex=1)
+dev.off()
+
+# PGSC0003DMG400021784
+png("figures/valdis/boxplot_PGSC0003DMG400021784.png", width = 2000, height = 1500, res =300)
+par(mar=c(7,4,4,2))
+boxplot(assay(vsd)["PGSC0003DMG400021784",] ~ samplelist_ordered$yield_potential * samplelist_ordered$treatment, 
+        las = 2, main = "PGSC0003DMG400021784 (UDP-glucuronosyltransferase)", ylab = "normalisierte Genexpression",
+        col = colors, names = c("HY \n Kontrolle", "LY \n Kontrolle", "Eltern \n Kontrolle",
+                                "HY \n Trockenstress", "LY \n Trockenstress", "Eltern \n Trockenstress"))
+legend("topright", fill=colors, legend=c("HY", "LY", "Eltern"), cex=1)
+dev.off()
+```
+
+
+## export significant results
+```{r export significant results}
+write.table(resSig_E1D, "output/valdis/deseq_sig_E1D.txt", sep = "\t", quote = F)
+write.table(resSig_E2D, "output/valdis/deseq_sig_E2D.txt", sep = "\t", quote = F)
+write.table(resSig_E3D, "output/valdis/deseq_sig_E3D.txt", sep = "\t", quote = F)
+
+write.table(resSig_E1C, "output/valdis/deseq_sig_E1C.txt", sep = "\t", quote = F)
+write.table(resSig_E2C, "output/valdis/deseq_sig_E2C.txt", sep = "\t", quote = F)
+write.table(resSig_E3C, "output/valdis/deseq_sig_E3C.txt", sep = "\t", quote = F)
+
+write.table(rownames(resSig_E1D), col.names = F, row.names = F, quote = F, "output/valdis/sig_genes_E1D.txt")
+write.table(rownames(resSig_E2D), col.names = F, row.names = F, quote = F, "output/valdis/sig_genes_E2D.txt")
+write.table(rownames(resSig_E3D), col.names = F, row.names = F, quote = F, "output/valdis/sig_genes_E3D.txt")
+write.table(rownames(resSig_E1C), col.names = F, row.names = F, quote = F, "output/valdis/sig_genes_E1C.txt")
+write.table(rownames(resSig_E2C), col.names = F, row.names = F, quote = F, "output/valdis/sig_genes_E2C.txt")
+write.table(rownames(resSig_E3C), col.names = F, row.names = F, quote = F, "output/valdis/sig_genes_E3C.txt")
+```
+
+# Correlation analysis between yield data and gene expression
+## Load phenotypic traits: yield data
+* E1: MPI big bag 2015 (ID: 72247)
+* E2: MPI field 2015 (ID: 72275)
+* E3: JKI field 2015 (ID: 72396)
+
+* SY = normalized starch yield (under control or stress conditions)
+* SSI = stress susceptibility index
+
+```{r load phenotypic traits: yield data}
+lines_alias <- as.character(unique(samplelist_ordered$lines_alias))
+
+sy <- read.table("../trost_phenotypes/output/control_norm_sy_only_sp_2014_2015_2016.txt", header = T, sep = "\t")
+sy_stress <- read.table("../trost_phenotypes/output/stress_norm_sy_only_sp_2014_2015_2016.txt", header = T, sep = "\t")
+ssi <- read.table("../trost_phenotypes/output/ssi_only_sp_2014_2015_2016.txt", header = T, sep = "\t")
+
+colnames(sy)
+```
+
+## Modify yield data
+```{r modify yield data}
+# Subset of experiments used for RNA-Seq
+sy_sub <- sy[lines_alias, c("MPI_FGH_2015", "MPI_Feld_2015", "JKI_Feld_2015")]
+sy_sub$lines_alias <- rownames(sy_sub)
+sy_stress_sub <- sy_stress[lines_alias, c("MPI_FGH_2015", "MPI_Feld_2015", "JKI_Feld_2015")]
+sy_stress_sub$lines_alias <- rownames(sy_stress_sub)
+ssi_sub <- ssi[lines_alias, c("MPI_FGH_2015", "MPI_Feld_2015", "JKI_Feld_2015")]
+ssi_sub$lines_alias <- rownames(ssi_sub)
+
+# melt tables
+sy_sub_melt <- melt(sy_sub)
+sy_stress_sub_melt <- melt(sy_stress_sub)
+ssi_sub_melt <- melt(ssi_sub)
+
+# reorder experiment factor (culture name)
+levels(samplelist_ordered$culture_name)
+levels(sy_sub_melt$variable) <- levels(samplelist_ordered$culture_name)[c(2,3,1)]
+levels(sy_stress_sub_melt$variable) <- levels(samplelist_ordered$culture_name)[c(2,3,1)]
+colnames(sy_sub_melt)[2] <- colnames(sy_stress_sub_melt)[2] <- "culture_name"
+
+# merge yield data with RNA-Seq samplelist
+sy_sub_melt_control <- merge(samplelist_C[,c("culture_name", "lines_alias", "letter_code", "treatment", "yield_potential")], 
+                      sy_sub_melt, by = c("culture_name", "lines_alias"), sort = F)
+
+sy_sub_melt_stress <- merge(samplelist_D[,c("culture_name", "lines_alias", "letter_code", "treatment", "yield_potential")], 
+                      sy_stress_sub_melt, by = c("culture_name", "lines_alias"), sort = F)
+```
+
+## Correlation of yield and gene expression for selected genes
+```{r correlation of yield and gene expression for selected genes}
+# PGSC0003DMG400012100
+cor.test(assay(vsd_D)[16879,], sy_sub_melt_control$value)
+plot(assay(vsd_D)[16879,], sy_sub_melt_control$value, pch = 19, col = samplelist_D$yield_potential, cex = 1.5)
+
+cor.test(assay(vsd_D)[16879,], sy_sub_melt_stress$value)
+plot(assay(vsd_D)[16879,], sy_sub_melt_stress$value, pch = 19, col = samplelist_D$yield_potential, cex = 1.5)
+
+# PGSC0003DMG401011206 (Vacuolar ATP synthase subunit h)
+cor.test(assay(vsd_D)[16647,], sy_sub_melt_control$value)
+plot(assay(vsd_D)[16647,], sy_sub_melt_control$value, pch = 19, col = samplelist_D$yield_potential, cex = 1.5)
+plot(sy_sub_melt_control$value, assay(vsd_D)[16647,], pch = 19, 
+     col = colors[samplelist_D$yield_potential], cex = 1.5,
+     xlab = "SY control", ylab = "gene expression drought")
+
+cor.test(assay(vsd_D)[16647,], sy_sub_melt_stress$value)
+plot(sy_sub_melt_stress$value, assay(vsd_D)[16647,], pch = 19, col = colors[samplelist_D$yield_potential], cex = 1.5)
+
+# PGSC0003DMG400017234 (Vacuolar ATP synthase subunit h)
+cor.test(assay(vsd_D)[9025,], sy_sub_melt_control$value)
+plot(sy_sub_melt_control$value, assay(vsd_D)[9025,], pch = 19, 
+     col = colors[samplelist_D$yield_potential], cex = 1.5,
+     xlab = "SY control", ylab = "gene expression drought")
+
+cor.test(assay(vsd_C)[9025,], sy_sub_melt_control$value)
+plot(sy_sub_melt_control$value, assay(vsd_C)[9025,], pch = 19, 
+     col = colors[samplelist_D$yield_potential], cex = 1.5,
+     xlab = "SY control", ylab = "gene expression control")
+
+
+sy_control_mean <- apply(sy, 1, mean)
+sy_control_median <- apply(sy, 1, median)
+sy_stress_median <- apply(sy_stress, 1, median)
+names(sy_control_median)[1] <- names(sy_stress_median)[1] <- "A"
+names(sy_control_median)[63] <- names(sy_stress_median)[63] <- "R"
+names(sy_control_median)[62] <- names(sy_stress_median)[62] <- "E"
+
+#sy_control_median_part <- subset(sy_control_median, names(sy_control_median) %in% levels(samplelist_C$lines_alias))
+sy_control_median_part <- subset(sy_control_median, names(sy_control_median) %in% levels(samplelist_C$lines_alias))
+sy_stress_median_part <- subset(sy_stress_median, names(sy_stress_median) %in% levels(samplelist_D$lines_alias))
+
+
+vsd_D_t <- t(assay(vsd_D))
+vsd_D_merge <- merge(samplelist_D, vsd_D_t, by = "row.names")
+
+
+# sy_sub_melt_stress_merge <- merge(sy_sub_melt_stress, vsd_D_t, by.x = "letter_code", by.y = "row.names")
+
+
+vsd_D_merge_mean <- ddply(vsd_D_merge, 
+                          c("line_alias", "treatment"), 
+                          summarise,
+                          PGSC0003DMG400012100 = mean(PGSC0003DMG400012100))
+
+plot(vsd_D_merge_mean$PGSC0003DMG400012100, sy_control_median_part)
+```
+
+## Correlation of yield and gene expression
+```{r correlation of yield and gene expression}
+
+vsd_C_exp <- SummarizedExperiment::assay(vsd_C)
+vsd_D_exp <- SummarizedExperiment::assay(vsd_D)
+dim(vsd_C_exp)
+
+res_cor <- data.frame(row.names = rownames(vsd_C_exp))
+
+for(i in 1:nrow(res_cor)){
+  res_cor_c_c <- cor.test(vsd_C_exp[i,], sy_sub_melt_control$value)
+  res_cor_c_d <- cor.test(vsd_C_exp[i,], sy_sub_melt_stress$value)
+  res_cor_d_c <- cor.test(vsd_D_exp[i,], sy_sub_melt_control$value)
+  res_cor_d_d <- cor.test(vsd_D_exp[i,], sy_sub_melt_stress$value)
+  
+  res_cor$cor_c_c[i] <- res_cor_c_c$estimate
+  res_cor$pval_c_c[i] <- res_cor_c_c$p.value
+  res_cor$cor_c_d[i] <- res_cor_c_d$estimate
+  res_cor$pval_c_d[i] <- res_cor_c_d$p.value
+  res_cor$cor_d_c[i] <- res_cor_d_c$estimate
+  res_cor$pval_d_c[i] <- res_cor_d_c$p.value
+  res_cor$cor_d_d[i] <- res_cor_d_d$estimate
+  res_cor$pval_d_d[i] <- res_cor_d_d$p.value
+}
+
+# p-value adjustment
+res_cor$padj_c_c <- p.adjust(res_cor$pval_c_c, method = "BH")
+res_cor$padj_c_d <- p.adjust(res_cor$pval_c_d, method = "BH")
+res_cor$padj_d_c <- p.adjust(res_cor$pval_d_c, method = "BH")
+res_cor$padj_d_d <- p.adjust(res_cor$pval_d_d, method = "BH")
+
+for(i in 1:nrow(res_cor)){
+  res_cor$cor_mean[i] <- mean(c(res_cor$cor_c_c[i], res_cor$cor_c_d[i], 
+                                res_cor$cor_d_c[i], res_cor$cor_d_d[i]))
+}
+
+res_cor_fil <- subset(res_cor, abs(res_cor$cor_mean) > 0.4)
+
+write.csv(res_cor, "output/valdis/cor_sy_gene_exp_all.csv")
+write.csv(res_cor_fil, "output/valdis/cor_sy_gene_exp_fil.csv")
+```
+
+## Compare results of correlation analysis
+```{r Compare results of correlation analysis}
+table(res_cor$padj_d_d < 0.05) # 5536
+table(res_cor$padj_d_c < 0.05) # 4
+table(res_cor$padj_c_c < 0.05) # 14
+table(res_cor$padj_c_d < 0.05) # 1096
+
+table(res_cor$padj_d_d < 0.05, res_cor$cor_d_d > 0.6) # 81
+
+length(intersect(which(res_cor$padj_d_d < 0.05),
+                 which(res_cor$padj_c_d < 0.05))) # 599
+
+intersect(intersect(which(res_cor$padj_d_d < 0.05),
+                 which(res_cor$padj_c_d < 0.05)),
+          which(res_cor$padj_c_c < 0.05)) # 2
+rownames(vsd_C_exp)[c(9025, 16313)]
+# "PGSC0003DMG400017234" Auxin-induced protein 5NG4
+# "PGSC0003DMG400003042" Osmotin
+
+intersect(intersect(which(res_cor$padj_d_d < 0.05),
+                 which(res_cor$padj_c_d < 0.05)),
+          which(res_cor$padj_d_c < 0.05)) # 1: 16647
+rownames(vsd_C_exp)[16647]
+# PGSC0003DMG401011206 Vacuolar ATP synthase subunit h
+
+venn_res <- func_venn_diagram_3(res1 = which(res_cor$padj_d_d < 0.05),
+                    res2 = which(res_cor$padj_c_d < 0.05),
+                    res3 = which(res_cor$padj_c_c < 0.05),
+                    lab1 = "d_d",
+                    lab2 = "c_d",
+                    lab3 = "c_c")
+
+plot.new()
+flog.threshold(ERROR)
+grid.draw(venn_res)
+
+goi = "PGSC0003DMG400003042"
+goi = "PGSC0003DMG400017234" 
+
+plot(vsd_C_exp[goi,], sy_sub_melt_control$value)
+plot(vsd_C_exp[goi,], sy_sub_melt_stress$value)
+plot(vsd_D_exp[goi,], sy_sub_melt_control$value)
+plot(vsd_D_exp[goi,], sy_sub_melt_stress$value)
+```
+
+# plot SY under control/stress conditions
+```{r plot SY under control/stress conditions}
+sy_sub_melt_both <- bind_rows(sy_sub_melt_stress, sy_sub_melt_control) 
+levels(sy_sub_melt_both$lines_alias)
+
+lines_hy <- levels(droplevels(subset(sy_sub_melt_both$lines_alias, 
+                              sy_sub_melt_both$yield_potential == "high yield")))
+lines_ly <- levels(droplevels(subset(sy_sub_melt_both$lines_alias, 
+                              sy_sub_melt_both$yield_potential == "low yield")))
+lines_p <- levels(droplevels(subset(sy_sub_melt_both$lines_alias, 
+                              sy_sub_melt_both$yield_potential == "parent")))
+
+sy_sub_melt_both$lines_alias <- factor(sy_sub_melt_both$lines_alias, 
+                                          levels = c(lines_ly, lines_hy, lines_p))
+
+palette(colors)
+ggplot(sy_sub_melt_control, aes(y = value, x = lines_alias, fill = yield_potential)) + geom_boxplot()
+ggplot(sy_sub_melt_stress, aes(y = value, x = lines_alias, fill = yield_potential)) + geom_boxplot()
+
+ggplot(sy_sub_melt_both, aes(y = value, x = lines_alias, fill = yield_potential)) + 
+  geom_boxplot() + facet_wrap(~treatment, ncol=1, scales='free') +
+  scale_fill_manual(values = colors)
+
+plot(sy_sub_melt_control$value, sy_sub_melt_stress$value, 
+     pch = c(17,18,19)[sy_sub_melt_control$culture_name],
+     col = colors[as.integer(sy_sub_melt_control$yield_potential)],
+     xlab = "control SY", ylab = "stress SY")
+legend("topleft", fill = colors, legend = c("high YP", "low YP", "parent"))
+legend("bottomright", pch = c(17,18,19), legend = levels(sy_sub_melt_control$culture_name))
+```
+
+# Corrplot: yield penalty marker genes selection
+```{r Corrplot: yield penalty marker genes selection}
+genelist <- read.table("data/valdis/yield_penalty_marker_genes_selection.txt", header=TRUE, sep="\t", check.names = F)
+
+vsd_C_sel <- assay(vsd_C) %>% t %>% as.data.frame %>% select(as.character(genelist$gene_id[1:44]))
+vsd_D_sel <- assay(vsd_D) %>% t %>% as.data.frame %>% select(as.character(genelist$gene_id[1:44]))
+
+cor_vsd_C <- cor(vsd_C_sel, use = "pairwise.complete.obs")
+cor_vsd_D <- cor(vsd_D_sel, use = "pairwise.complete.obs")
+
+pdf("figures/valdis/cor_vsd_yp_marker_genes.pdf", width=10, height=10)
+corrplot(cor_vsd_C, method="color", order="hclust", hclust.method="average", tl.col="black", tl.cex=0.9, main="control")
+corrplot(cor_vsd_D, method="color", order="hclust", hclust.method="average", tl.col="black", tl.cex=0.9, main="drought")
+dev.off()
+```
 
 
 # save workspace
 ```{r save workspace}
 save.image("valdis_deseq_analysis.RData")
+sessionInfo()
 ```
 
