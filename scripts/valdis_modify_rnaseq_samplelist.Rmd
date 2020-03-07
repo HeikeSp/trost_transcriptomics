@@ -2,12 +2,18 @@
 title: "Modifiy RNASeq Samplelist"
 author: "Heike Sprenger"
 date: "Monday, May 04, 2015"
-output: html_document
+output:
+  html_document:
+    highlight: tango
+    number_section: yes
+    theme: cerulean
+    toc: yes
+    toc_float: true
+    toc_depth: 4
 ---
 
-## Load workspace, packages and scripts
+# Load workspace, packages and scripts
 ```{r knitr options}
-
 library(knitr)
 library(pander)
 panderOptions('table.split.table', 200)
@@ -16,11 +22,12 @@ panderOptions('table.split.table', 200)
 opts_knit$set(root.dir = '../')
 ```
 
-## Load samplelist
+# Load samplelist
 ```{r load samplelist, echo=TRUE}
 samplelist <- read.table("data/valdis/samplelist_valdis_2015_w_mapping_stats.txt", header=TRUE, sep = "\t")
 ```
 
+# Modify samplelist
 ## Order samplelist
 ```{r order samplelist, echo=TRUE}
 # new ordering! (trial number, condition, cultivar)
@@ -39,7 +46,7 @@ samplelist_ordered$yield_potential[which(samplelist_ordered$lines_alias %in% c("
 samplelist_ordered$yield_potential <- as.factor(samplelist_ordered$yield_potential)
 
 # rename conditions
-levels(samplelist_ordered$treatment) <- c("control", "drought stress")
+levels(samplelist_ordered$treatment) <- c("control", "drought_stress")
 ```
 
 ## Interactions of two factors
@@ -52,9 +59,6 @@ levels(interaction(samplelist_ordered$culture_name, samplelist_ordered$treatment
 
 # tolerance x condition
 levels(interaction(samplelist_ordered$yield_potential, samplelist_ordered$treatment))
-
-# trial_name x cultivar
-# levels(interaction(samplelist_ordered$trial_name, samplelist_ordered$cultivar))
 ```
 
 ## Define vector for trial information (cultivation type)
@@ -70,13 +74,6 @@ samplelist_modified <- data.frame(samplelist_ordered, trial,
                             "trial_treatment" = interaction(trial, samplelist_ordered$treatment), 
                             "yieldpot_treatment" = interaction(samplelist_ordered$yield_potential, samplelist_ordered$treatment),
                             "trial_yieldpot" = interaction(trial, samplelist_ordered$yield_potential))
-
-# change column names
-# colnames(samplelist_modified) <- c("sample_number", "sample_name", "trial_number", "trial_name", 
-#                                   "cultivation", "cultivar", "condition", "tolerance",
-#                                   "libsize_raw", "libsize_mapped", "trial", 
-#                                   "cultivar_condition","cultivation_condition", "tolerance_condition", 
-#                                   "cultivation_cultivar", "cultivation_tolerance", "trial_name_cultivar")
 
 head(samplelist_modified)
 ```
@@ -96,40 +93,7 @@ samplelist_modified$population[which(grepl("EA",samplelist_modified$lines_alias)
 samplelist_modified$population <- as.factor(samplelist_modified$population)
 ```
 
-
-## Relevel trial_name
-```{r relevel trial_name}
-# levels(samplelist_modified$trial_name)
-# samplelist_modified$trial_name <- factor(samplelist_modified$trial_name, 
-#                                         levels=c("JKI-GWH1", "MPITest1.2", "MPITest2", 
-#                                                  "JKIFeld2012", "MPIFeld2011", "MPIFeld2012") )
-```
-
-## Subsets of samplelist
-```{r subsets of samplelist}
-# samplelist subset for greenhouse/field
-# samplelist_greenhouse <- subset(samplelist_modified, samplelist_modified$cultivation == "greenhouse")
-# samplelist_field <- subset(samplelist_modified, samplelist_modified$cultivation == "field")
-# 
-# # droplevels is used to drop unused levels from a factor or, more commonly, from factors in a data frame.
-# samplelist_greenhouse <- droplevels(samplelist_greenhouse) 
-# samplelist_field <- droplevels(samplelist_field)
-```
-
-## Further subsets
-```{r further subsets}
-# samplelist_greenhouse_tolerant <- subset(samplelist_modified, cultivation == "greenhouse" & tolerance == "tolerant")
-# samplelist_greenhouse_sensitive <- subset(samplelist_modified, cultivation == "greenhouse" & tolerance == "sensitive")
-# samplelist_greenhouse_control <- subset(samplelist_modified, cultivation == "greenhouse" & condition == "control")
-# samplelist_greenhouse_stress <- subset(samplelist_modified, cultivation == "greenhouse" & condition == "stress")
-# 
-# samplelist_field_tolerant <- subset(samplelist_modified, cultivation == "field" & tolerance == "tolerant")
-# samplelist_field_sensitive <- subset(samplelist_modified, cultivation == "field" & tolerance == "sensitive")
-# samplelist_field_control <- subset(samplelist_modified, cultivation == "field" & condition == "control")
-# samplelist_field_stress <- subset(samplelist_modified, cultivation == "field" & condition == "stress")
-```
-
-## Save modified samplelist
+# Save modified samplelist
 ```{r save modified samplelist}
 write.table(samplelist_modified, "output/valdis/samplelist_modified.txt", sep="\t")
 # write.table(samplelist_greenhouse, "output/samplelist_greenhouse.txt", sep="\t")
