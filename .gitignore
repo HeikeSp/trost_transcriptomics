@@ -11,6 +11,9 @@
 *.txt
 *.csv
 *.docx
+*.pptx
+*.db
+*.svg
 *.pmd*
 *.tar.*
 *.tar
@@ -19,3 +22,4 @@
 *.zip
 *.bmp
 *.psd
+*.log

@@ -14,6 +14,7 @@ Overview of RNA-Seq Data
 ```{r set working directory}
 getwd()
 #setwd("D:/work/repos/trost_transcriptomics")
+#setwd("X:/mpimp/repos/trost_transcriptomics")
 ```
 
 

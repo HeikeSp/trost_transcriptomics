@@ -11,6 +11,7 @@ output: html_document
 ```{r set working directory}
 #getwd()
 #setwd("D:/work/repos/trost_transcriptomics")
+#setwd("X:/mpimp/repos/trost_transcriptomics")
 ```
 
 [solution for issue with working directory and knitr](https://github.com/yihui/knitr/issues/277)
